@@ -7,7 +7,7 @@
     "48": "images/logo.png"
   },
   "homepage_url": "https://platform.getalchemystai.com",
-  "name": "Alchemyst Context Layer",
+  "name": "Alchemyst ContextGPT",
   "version": "0.0.1",
   "description": "Enhance ChatGPT responses with personalized context from Alchemyst AI.",
   "permissions": [
