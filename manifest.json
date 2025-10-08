@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Alchemyst Context Layer",
+  "version": "1.0",
+  "description": "Enhance ChatGPT responses with personalized context from Alchemyst AI.",
+  "permissions": ["storage", "scripting", "activeTab", "offscreen"],
+  "host_permissions": [
+    "https://chat.openai.com/*",
+    "https://chatgpt.com/*",
+    "https://platform-backend.getalchemystai.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*"
+      ],
+      "js": ["content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["inpage.js"],
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
+
