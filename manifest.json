@@ -1,9 +1,18 @@
 {
+  "$schema": "https://json.schemastore.org/chrome-manifest",
   "manifest_version": 3,
+  "icons": {
+    "128": "images/logo.png"
+  },
   "name": "Alchemyst Context Layer",
-  "version": "1.0",
+  "version": "0.0.2",
   "description": "Enhance ChatGPT responses with personalized context from Alchemyst AI.",
-  "permissions": ["storage", "scripting", "activeTab", "offscreen"],
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab",
+    "offscreen"
+  ],
   "host_permissions": [
     "https://chat.openai.com/*",
     "https://chatgpt.com/*",
@@ -18,12 +27,16 @@
         "https://chat.openai.com/*",
         "https://chatgpt.com/*"
       ],
-      "js": ["content.js"]
+      "js": [
+        "content.js"
+      ]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["inpage.js"],
+      "resources": [
+        "inpage.js"
+      ],
       "matches": [
         "https://chat.openai.com/*",
         "https://chatgpt.com/*"
@@ -34,4 +47,3 @@
     "default_popup": "popup.html"
   }
 }
-

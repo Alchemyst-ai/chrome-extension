@@ -32,7 +32,7 @@ function setPromptText(el, value) {
   }
   // contenteditable or other elements
   el.textContent = value;
-  try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (_) {}
+  try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (_) { }
 }
 
 function getPort() {
@@ -65,7 +65,7 @@ function fetchContextViaPort(query) {
     port.onMessage.addListener(onMsg);
     port.postMessage({ type: "fetchContext", id, query });
     setTimeout(() => {
-      try { port.onMessage.removeListener(onMsg); } catch (_) {}
+      try { port.onMessage.removeListener(onMsg); } catch (_) { }
       resolve({ error: "timeout" });
     }, 8000);
   });
@@ -93,7 +93,7 @@ document.addEventListener("keydown", async (e) => {
       response = await fetchContextViaPort(query);
       if (response?.error) {
         // Fallback to runtime messaging
-        await chrome.runtime.sendMessage({ type: "ping" }).catch(() => {});
+        await chrome.runtime.sendMessage({ type: "ping" }).catch(() => { });
         response = await chrome.runtime.sendMessage({ type: "fetchContext", query });
       }
     } catch (err) {
@@ -134,7 +134,7 @@ document.addEventListener("keydown", async (e) => {
 
 // Periodic ping to keep SW active
 setInterval(() => {
-  try { chrome.runtime.sendMessage({ type: 'keepAlive' }).catch(() => {}); } catch (_) {}
+  try { chrome.runtime.sendMessage({ type: 'keepAlive' }).catch(() => { }); } catch (_) { }
 }, 30000);
 
 // Store API key globally for inpage script access
@@ -163,12 +163,12 @@ const pendingRequests = new Map();
   try {
     const url = chrome.runtime.getURL('inpage.js');
     const s = document.createElement('script');
-    s.src = url; 
+    s.src = url;
     s.async = false;
     s.crossOrigin = 'anonymous';
     (document.head || document.documentElement).appendChild(s);
     s.onload = () => { s.remove(); };
-  } catch (_) {}
+  } catch (_) { }
 
   // Bridge messages between page and extension for context fetch
   window.addEventListener('message', async (event) => {
@@ -176,11 +176,11 @@ const pendingRequests = new Map();
     const data = event.data;
     if (!data || data.type !== 'ALCHEMYST_CONTEXT_REQUEST') return;
     console.log('Alchemyst: content script received context request:', data.query);
-    
+
     try {
       const query = String(data.query || '');
       console.log('Alchemyst: content script making API call for query:', query);
-      
+
       // Check if we already have a pending request for this query
       if (pendingRequests.has(query)) {
         console.log('Alchemyst: request already pending for query:', query);
@@ -193,7 +193,7 @@ const pendingRequests = new Map();
         }
         return;
       }
-      
+
       // Use cached API key
       if (!globalApiKey) {
         console.log('Alchemyst: no cached API key found, trying to load from storage...');
@@ -214,24 +214,24 @@ const pendingRequests = new Map();
           return;
         }
       }
-      
+
       // Create a promise for this request and store it
       const requestPromise = (async () => {
         try {
           console.log('Alchemyst: requesting context from background script');
-          
+
           // Use persistent port connection instead of sendMessage
           return new Promise((resolve, reject) => {
             const port = chrome.runtime.connect({ name: 'alchemyst' });
-            
+
             // Set up response handler
             port.onMessage.addListener((response) => {
               console.log('Alchemyst: received response from background script via port:', response);
-              
+
               // Check if this response is for our request
               if (response.id === requestId) {
                 port.disconnect();
-                
+
                 if (response && response.context) {
                   console.log('Alchemyst: API call successful, context:', response.context);
                   resolve(response.context);
@@ -246,16 +246,16 @@ const pendingRequests = new Map();
                 console.log('Alchemyst: received response for different request ID:', response.id, 'expected:', requestId);
               }
             });
-            
+
             // Set up error handler
             port.onDisconnect.addListener(() => {
               console.log('Alchemyst: port disconnected');
               resolve('');
             });
-            
+
             // Generate unique ID for this request
             const requestId = Date.now() + Math.random();
-            
+
             // Send the request
             console.log('Alchemyst: sending fetchContext message via port with ID:', requestId);
             port.postMessage({
@@ -263,23 +263,23 @@ const pendingRequests = new Map();
               query: query,
               id: requestId
             });
-            
+
             // Timeout after 10 seconds
             setTimeout(() => {
               console.log('Alchemyst: port request timeout');
               port.disconnect();
               resolve('');
-            }, 1000000);
+            }, 7_000);
           });
         } catch (err) {
           console.log('Alchemyst: background script call failed:', err);
           return '';
         }
       })();
-      
+
       // Store the promise for deduplication
       pendingRequests.set(query, requestPromise);
-      
+
       try {
         const result = await requestPromise;
         window.postMessage({ type: 'ALCHEMYST_CONTEXT_REPLY', payload: result }, '*');

@@ -1,8 +1,8 @@
-(function() {
+(function () {
   const ENDPOINT_REGEX = /\/backend-api\/f\/conversation/;
-  
+
   console.log('Alchemyst: inpage.js loaded');
-  
+
   // Get API key from localStorage
   const apiKey = localStorage.getItem('alchemystApiKey');
   console.log('Alchemyst: API key from localStorage:', apiKey ? 'found' : 'not found');
@@ -12,7 +12,7 @@
       if (typeof input === 'string') return input;
       if (input && typeof input.url === 'string') return input.url;
       if (init && typeof init.url === 'string') return init.url;
-    } catch (_) {}
+    } catch (_) { }
     return '';
   }
 
@@ -46,11 +46,11 @@
         };
         window.addEventListener('message', replyHandler);
         window.postMessage({ type: 'ALCHEMYST_CONTEXT_REQUEST', query: userText }, '*');
-        setTimeout(() => { 
-          window.removeEventListener('message', replyHandler); 
+        setTimeout(() => {
+          window.removeEventListener('message', replyHandler);
           console.log('Alchemyst: context timeout');
-          resolve(''); 
-        }, 7000);
+          resolve('');
+        }, 10_000);
       });
 
       if (context) {
@@ -69,7 +69,7 @@
 
   // Hook fetch
   const origFetch = window.fetch;
-  window.fetch = async function(input, init) {
+  window.fetch = async function (input, init) {
     try {
       if (shouldIntercept(input, init)) {
         // If init is provided and has a string body
@@ -84,7 +84,7 @@
           const method = (init?.method) || input.method || 'GET';
           if (method.toUpperCase() === 'POST') {
             let bodyText = '';
-            try { bodyText = await input.clone().text(); } catch (_) {}
+            try { bodyText = await input.clone().text(); } catch (_) { }
             if (bodyText) {
               const newBody = await enrichPayload(bodyText);
               const newReq = new Request(input, { body: newBody, method, headers: input.headers });
@@ -93,17 +93,17 @@
           }
         }
       }
-    } catch (_) {}
+    } catch (_) { }
     return origFetch.apply(this, arguments);
   };
 
   // Hook XHR
   const origOpen = XMLHttpRequest.prototype.open;
   const origSend = XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.open = function(method, url) {
+  XMLHttpRequest.prototype.open = function (method, url) {
     this.__alch_url = url; return origOpen.apply(this, arguments);
   };
-  XMLHttpRequest.prototype.send = function(body) {
+  XMLHttpRequest.prototype.send = function (body) {
     if (this.__alch_url && typeof this.__alch_url === 'string' && ENDPOINT_REGEX.test(this.__alch_url) && body) {
       try {
         const proceed = async () => {

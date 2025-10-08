@@ -1,7 +1,7 @@
 // Keep service worker alive - only handle keepAlive messages
 chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
   console.log("[Message Received]:", msg.type, "from:", sender.tab?.url || "unknown");
-  
+
   // Keep service worker alive by responding to pings
   if (msg.type === "keepAlive") {
     console.log("[Keep Alive] Ping received from:", sender.tab?.url || "unknown");
@@ -14,7 +14,7 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
-  
+
   // All fetchContext requests now go through port connections
   return false;
 });
@@ -24,11 +24,11 @@ chrome.runtime.onConnect.addListener((port) => {
   console.log("[Port Connected]:", port.name);
 
   if (port.name !== "alchemyst") return;
-  
+
   port.onDisconnect.addListener(() => {
     console.log("[Port Disconnected]:", port.name);
   });
-  
+
   port.onMessage.addListener(async (msg) => {
     console.log("[Port Message Received]:", msg?.type, "query:", msg?.query, "id:", msg?.id);
 
@@ -48,7 +48,7 @@ chrome.runtime.onConnect.addListener((port) => {
 
         console.log("[Port] Making API request...");
         const res = await fetch(
-          "https://platform-backend.getalchemystai.com/api/v1/context/search",
+          "https://platform-backend.getalchemystai.com/api/v1/context/search?mode=fast",
           {
             method: "POST",
             headers: {
