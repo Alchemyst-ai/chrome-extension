@@ -2,8 +2,11 @@
   "$schema": "https://json.schemastore.org/chrome-manifest",
   "manifest_version": 3,
   "icons": {
-    "128": "images/logo.png"
+    "16": "images/logo.png",
+    "256": "images/logo.png",
+    "48": "images/logo.png"
   },
+  "homepage_url": "https://platform.getalchemystai.com",
   "name": "Alchemyst Context Layer",
   "version": "0.0.2",
   "description": "Enhance ChatGPT responses with personalized context from Alchemyst AI.",
