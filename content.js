@@ -178,8 +178,15 @@ const pendingRequests = new Map();
     console.log('Alchemyst: content script received context request:', data.query);
 
     try {
-      const query = String(data.query || '');
+      const raw = String(data.query || '');
+      const query = raw.trim();
       console.log('Alchemyst: content script making API call for query:', query);
+
+      // Ignore empty queries (common for /prepare calls)
+      if (!query) {
+        window.postMessage({ type: 'ALCHEMYST_CONTEXT_REPLY', payload: '' }, '*');
+        return;
+      }
 
       // Check if we already have a pending request for this query
       if (pendingRequests.has(query)) {
@@ -269,7 +276,7 @@ const pendingRequests = new Map();
               console.log('Alchemyst: port request timeout');
               port.disconnect();
               resolve('');
-            }, 7_000);
+            }, 60_000);
           });
         } catch (err) {
           console.log('Alchemyst: background script call failed:', err);

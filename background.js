@@ -24,8 +24,10 @@ chrome.runtime.onConnect.addListener((port) => {
   console.log("[Port Connected]:", port.name);
 
   if (port.name !== "alchemyst") return;
-
+  
+  let isDisconnected = false;
   port.onDisconnect.addListener(() => {
+    isDisconnected = true;
     console.log("[Port Disconnected]:", port.name);
   });
 
@@ -33,16 +35,37 @@ chrome.runtime.onConnect.addListener((port) => {
     console.log("[Port Message Received]:", msg?.type, "query:", msg?.query, "id:", msg?.id);
 
     if (msg?.type === "fetchContext") {
+      // Guard: avoid network call for empty/whitespace-only queries
+      const trimmedQuery = String(msg?.query || "").trim();
+      if (!trimmedQuery) {
+        console.log("[Port] Empty query received, returning empty context immediately", { id: msg?.id });
+        if (!isDisconnected) {
+          try {
+            port.postMessage({ id: msg?.id, context: "" });
+          } catch (e) {
+            console.warn("[Port] Failed to post empty context (disconnected?)", e);
+          }
+        } else {
+          console.log("[Port] Skipping response because port is disconnected", { id: msg?.id });
+        }
+        return;
+      }
       try {
         const { alchemystApiKey } = await chrome.storage.local.get(
           "alchemystApiKey"
         );
         if (!alchemystApiKey) {
           console.warn("No API key found for port connection");
-          port.postMessage({
-            id: msg.id,
-            error: "No API key found. Please add it in the extension popup.",
-          });
+          if (!isDisconnected) {
+            try {
+              port.postMessage({
+                id: msg.id,
+                error: "No API key found. Please add it in the extension popup.",
+              });
+            } catch (e) {
+              console.warn("[Port] Failed to post API key error (disconnected?)", e);
+            }
+          }
           return;
         }
 
@@ -71,11 +94,19 @@ chrome.runtime.onConnect.addListener((port) => {
             status: res.status,
             details: text,
           });
-          port.postMessage({
-            id: msg.id,
-            error: `HTTP ${res.status}`,
-            details: text,
-          });
+          if (!isDisconnected) {
+            try {
+              port.postMessage({
+                id: msg.id,
+                error: `HTTP ${res.status}`,
+                details: text,
+              });
+            } catch (e) {
+              console.warn("[Port] Failed to post HTTP error (disconnected?)", e);
+            }
+          } else {
+            console.log("[Port] Skipping error response because port is disconnected", { id: msg?.id });
+          }
           return;
         }
 
@@ -98,11 +129,27 @@ chrome.runtime.onConnect.addListener((port) => {
           topContents: topContents
         });
         console.log("[Port] Sending response for message:", msg.id);
-        port.postMessage({ id: msg.id, context: topContents });
-        console.log("[Port] Response sent successfully");
+        if (!isDisconnected) {
+          try {
+            port.postMessage({ id: msg.id, context: topContents });
+            console.log("[Port] Response sent successfully");
+          } catch (e) {
+            console.warn("[Port] Failed to send response (disconnected?)", e);
+          }
+        } else {
+          console.log("[Port] Skipping response because port is disconnected", { id: msg?.id });
+        }
       } catch (err) {
         console.error("[Port] Context fetch failed:", err);
-        port.postMessage({ id: msg.id, error: "Failed to fetch context" });
+        if (!isDisconnected) {
+          try {
+            port.postMessage({ id: msg.id, error: "Failed to fetch context" });
+          } catch (e) {
+            console.warn("[Port] Failed to post generic error (disconnected?)", e);
+          }
+        } else {
+          console.log("[Port] Skipping error response because port is disconnected", { id: msg?.id });
+        }
       }
     }
   });

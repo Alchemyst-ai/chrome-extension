@@ -1,5 +1,6 @@
 (function () {
-  const ENDPOINT_REGEX = /\/backend-api\/f\/conversation/;
+  // Match the final conversation POST, but NOT the /prepare preflight
+  const ENDPOINT_REGEX = /\/backend-api\/f\/conversation(?:\?|$)/;
 
   console.log('Alchemyst: inpage.js loaded');
 
@@ -33,6 +34,11 @@
       const userText = userMsg?.content?.parts?.join('\n') || '';
       console.log('Alchemyst: user text:', userText);
 
+      // Skip enrichment for empty prompts (e.g., /prepare calls)
+      if (!String(userText).trim()) {
+        return JSON.stringify(payload);
+      }
+
       // Request context from content script (which has proper permissions)
       const context = await new Promise((resolve) => {
         const replyHandler = (event) => {
@@ -50,7 +56,7 @@
           window.removeEventListener('message', replyHandler);
           console.log('Alchemyst: context timeout');
           resolve('');
-        }, 10_000);
+        }, 30_000);
       });
 
       if (context) {
