@@ -137,6 +137,186 @@ setInterval(() => {
   try { chrome.runtime.sendMessage({ type: 'keepAlive' }).catch(() => { }); } catch (_) { }
 }, 30000);
 
+// Inject logo button next to the voice icon
+(function injectLogoButton() {
+  const BTN_ID = 'alchemyst-logo-button';
+  const VOICE_CONTAINER_SELECTOR = '[data-testid="composer-speech-button-container"]';
+  const DICTATE_BUTTON_SELECTOR = 'button[aria-label="Dictate button"]';
+  const CLAUDE_INPUT_AREA_SELECTOR = '[data-supermemory-icon-added="true"]';
+  const MEMORY_STATE_KEY = 'alchemyst_memory_enabled';
+
+  function ensureButton() {
+    try {
+      // Check if we're on Claude.ai
+      const isClaude = window.location.hostname === 'claude.ai';
+      
+      let target, parentFlex;
+      
+      if (isClaude) {
+        // Claude.ai: Insert in the input area next to existing icons
+        const claudeInputArea = document.querySelector(CLAUDE_INPUT_AREA_SELECTOR);
+        if (!claudeInputArea) return;
+        target = claudeInputArea;
+        parentFlex = claudeInputArea.parentElement;
+      } else {
+        // ChatGPT: Prefer to insert before the Dictate button; fallback to the voice container
+        const dictateBtn = document.querySelector(DICTATE_BUTTON_SELECTOR);
+        const voiceContainer = document.querySelector(VOICE_CONTAINER_SELECTOR);
+        const dictateWrapper = dictateBtn ? (dictateBtn.closest('span') || dictateBtn) : null;
+        parentFlex = (voiceContainer && voiceContainer.parentElement) || (dictateWrapper && dictateWrapper.parentElement);
+        target = dictateWrapper || voiceContainer;
+      }
+      
+      if (!parentFlex || !target) return;
+
+      // If already present, exit
+      if (document.getElementById(BTN_ID)) return;
+
+      const parent = parentFlex; // row container where the controls live
+
+      const imgSrc = chrome.runtime.getURL('images/logo.png');
+      const wrapper = document.createElement('div');
+      wrapper.id = BTN_ID;
+      wrapper.style.display = 'inline-flex';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.justifyContent = 'center';
+      wrapper.style.width = '36px';
+      wrapper.style.height = '36px';
+      wrapper.style.cursor = 'pointer';
+      wrapper.style.borderRadius = '50%';
+      wrapper.style.transition = 'opacity 0.2s';
+      wrapper.style.opacity = '1';
+      // Load initial state
+      const isEnabled = localStorage.getItem(MEMORY_STATE_KEY) === 'true';
+      wrapper.title = isEnabled ? 'Memory ON - Click to disable' : 'Memory OFF - Click to enable';
+      wrapper.setAttribute('aria-label', 'Alchemyst Memory');
+      wrapper.setAttribute('role', 'button');
+      wrapper.setAttribute('tabindex', '0');
+      wrapper.setAttribute('data-memory-enabled', isEnabled.toString());
+
+      const img = document.createElement('img');
+      img.src = imgSrc;
+      img.alt = 'Alchemyst';
+      img.width = 20;
+      img.height = 20;
+      img.style.borderRadius = '50%';
+      img.title = 'Alchemyst Memory';
+
+      wrapper.appendChild(img);
+
+      // Robust tooltip rendered in document.body to avoid overflow clipping
+      function getGlobalTooltip() {
+        let tip = document.getElementById('alchemyst-global-tooltip');
+        if (!tip) {
+          tip = document.createElement('div');
+          tip.id = 'alchemyst-global-tooltip';
+          tip.style.position = 'fixed';
+          tip.style.whiteSpace = 'nowrap';
+          tip.style.fontSize = '12px';
+          tip.style.lineHeight = '14px';
+          tip.style.padding = '6px 8px';
+          tip.style.borderRadius = '6px';
+          tip.style.background = 'rgba(0,0,0,0.85)';
+          tip.style.color = '#fff';
+          tip.style.pointerEvents = 'none';
+          tip.style.opacity = '0';
+          tip.style.transition = 'opacity 120ms ease';
+          tip.style.zIndex = '2147483647';
+          tip.style.visibility = 'hidden';
+          document.body.appendChild(tip);
+        }
+        return tip;
+      }
+
+      function showGlobalTooltip(anchorEl, text) {
+        const tip = getGlobalTooltip();
+        tip.textContent = text;
+        const rect = anchorEl.getBoundingClientRect();
+        const gap = 8;
+        const top = Math.max(0, rect.top - gap - 28); // place above
+        const left = Math.min(window.innerWidth - 8, Math.max(8, rect.left + rect.width / 2));
+        tip.style.left = `${left}px`;
+        tip.style.top = `${top}px`;
+        tip.style.transform = 'translateX(-50%)';
+        tip.style.visibility = 'visible';
+        tip.style.opacity = '1';
+      }
+
+      function hideGlobalTooltip() {
+        const tip = document.getElementById('alchemyst-global-tooltip');
+        if (tip) { tip.style.opacity = '0'; tip.style.visibility = 'hidden'; }
+      }
+
+      // Update visual state
+      function updateButtonState(enabled) {
+        wrapper.setAttribute('data-memory-enabled', enabled.toString());
+        wrapper.title = enabled ? 'Memory ON - Click to disable' : 'Memory OFF - Click to enable';
+        wrapper.style.opacity = enabled ? '1' : '0.6';
+        wrapper.style.filter = enabled ? 'none' : 'grayscale(0.3)';
+      }
+
+      const showTip = () => {
+        const enabled = wrapper.getAttribute('data-memory-enabled') === 'true';
+        const tooltipText = enabled ? 'Alchemyst Memory ON' : 'Alchemyst Memory OFF';
+        showGlobalTooltip(wrapper, tooltipText);
+      };
+      const hideTip = () => hideGlobalTooltip();
+      wrapper.addEventListener('mouseenter', showTip);
+      wrapper.addEventListener('mouseleave', hideTip);
+      wrapper.addEventListener('focusin', showTip);
+      wrapper.addEventListener('focusout', hideTip);
+
+      // Toggle functionality
+      wrapper.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const currentState = wrapper.getAttribute('data-memory-enabled') === 'true';
+        const newState = !currentState;
+        localStorage.setItem(MEMORY_STATE_KEY, newState.toString());
+        updateButtonState(newState);
+        // Emit custom event for other scripts to listen
+        window.postMessage({ type: 'ALCHEMYST_MEMORY_TOGGLE', enabled: newState }, '*');
+        console.log('Alchemyst Memory:', newState ? 'ENABLED' : 'DISABLED');
+      });
+
+      // Initialize with current state
+      updateButtonState(isEnabled);
+
+      // Insert based on platform
+      if (isClaude) {
+        // Claude: Insert after the existing input area
+        parent.insertBefore(wrapper, target.nextSibling);
+      } else {
+        // ChatGPT: Insert before the target control (Dictate button wrapper preferred)
+        parent.insertBefore(wrapper, target);
+      }
+
+      // Click handler – emit a custom event the inpage script could listen to if needed
+      wrapper.addEventListener('click', () => {
+        window.postMessage({ type: 'ALCHEMYST_LOGO_CLICK' }, '*');
+      });
+    } catch (_) { }
+  }
+
+  // Initial attempt
+  const start = Date.now();
+  const tryInject = () => {
+    ensureButton();
+    if (!document.getElementById(BTN_ID) && Date.now() - start < 10000) {
+      requestAnimationFrame(tryInject);
+    }
+  };
+  tryInject();
+
+  // Observe DOM changes to re-inject if ChatGPT re-renders the toolbar
+  const obs = new MutationObserver(() => {
+    ensureButton();
+  });
+  try {
+    obs.observe(document.documentElement, { childList: true, subtree: true });
+  } catch (_) { }
+})();
+
 // Store API key globally for inpage script access
 let globalApiKey = null;
 
@@ -181,6 +361,14 @@ const pendingRequests = new Map();
       const raw = String(data.query || '');
       const query = raw.trim();
       console.log('Alchemyst: content script making API call for query:', query);
+
+      // Check if memory is enabled
+      const memoryEnabled = localStorage.getItem('alchemyst_memory_enabled') === 'true';
+      if (!memoryEnabled) {
+        console.log('Alchemyst: Memory is disabled, skipping context fetch');
+        window.postMessage({ type: 'ALCHEMYST_CONTEXT_REPLY', payload: '' }, '*');
+        return;
+      }
 
       // Ignore empty queries (common for /prepare calls)
       if (!query) {

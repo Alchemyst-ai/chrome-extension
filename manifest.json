@@ -19,6 +19,7 @@
   "host_permissions": [
     "https://chat.openai.com/*",
     "https://chatgpt.com/*",
+    "https://claude.ai/*",
     "https://platform-backend.getalchemystai.com/*"
   ],
   "background": {
@@ -28,7 +29,8 @@
     {
       "matches": [
         "https://chat.openai.com/*",
-        "https://chatgpt.com/*"
+        "https://chatgpt.com/*",
+        "https://claude.ai/*"
       ],
       "js": [
         "content.js"
@@ -38,11 +40,13 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "inpage.js"
+        "inpage.js",
+        "images/logo.png"
       ],
       "matches": [
         "https://chat.openai.com/*",
-        "https://chatgpt.com/*"
+        "https://chatgpt.com/*",
+        "https://claude.ai/*"
       ]
     }
   ],
