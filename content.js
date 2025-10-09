@@ -148,17 +148,17 @@ setInterval(() => {
   function ensureButton() {
     try {
       // Check if we're on Claude.ai
-      const isClaude = window.location.hostname === 'claude.ai';
-      
+      const windowUrl = window.location.hostname;
+
       let target, parentFlex;
-      
-      if (isClaude) {
+
+      if (windowUrl.includes('claude.ai')) {
         // Claude.ai: Insert in the input area next to existing icons
         const claudeInputArea = document.querySelector(CLAUDE_INPUT_AREA_SELECTOR);
         if (!claudeInputArea) return;
         target = claudeInputArea;
         parentFlex = claudeInputArea.parentElement;
-      } else {
+      } else if (windowUrl.includes('chatgpt.com') || windowUrl.includes('chat.openai.com')) {
         // ChatGPT: Prefer to insert before the Dictate button; fallback to the voice container
         const dictateBtn = document.querySelector(DICTATE_BUTTON_SELECTOR);
         const voiceContainer = document.querySelector(VOICE_CONTAINER_SELECTOR);
@@ -166,7 +166,7 @@ setInterval(() => {
         parentFlex = (voiceContainer && voiceContainer.parentElement) || (dictateWrapper && dictateWrapper.parentElement);
         target = dictateWrapper || voiceContainer;
       }
-      
+
       if (!parentFlex || !target) return;
 
       // If already present, exit
@@ -283,10 +283,10 @@ setInterval(() => {
       updateButtonState(isEnabled);
 
       // Insert based on platform
-      if (isClaude) {
+      if (windowUrl.includes('claude.ai')) {
         // Claude: Insert after the existing input area
         parent.insertBefore(wrapper, target.nextSibling);
-      } else {
+      } else if (windowUrl.includes('chatgpt.com') || windowUrl.includes('chat.openai.com')) {
         // ChatGPT: Insert before the target control (Dictate button wrapper preferred)
         parent.insertBefore(wrapper, target);
       }
