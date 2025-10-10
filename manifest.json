@@ -6,10 +6,11 @@
     "256": "images/logo.png",
     "48": "images/logo.png"
   },
+  "short_name": "Alchemyst AI",
   "homepage_url": "https://platform.getalchemystai.com",
-  "name": "Alchemyst ContextGPT",
+  "name": "Alchemyst AI",
   "version": "0.0.1",
-  "description": "Enhance ChatGPT responses with personalized context from Alchemyst AI.",
+  "description": "Carry your context with you while using AI tools using Alchemyst AI.",
   "permissions": [
     "storage",
     "scripting",
