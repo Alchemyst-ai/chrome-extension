@@ -142,7 +142,7 @@ setInterval(() => {
   const BTN_ID = 'alchemyst-logo-button';
   const VOICE_CONTAINER_SELECTOR = '[data-testid="composer-speech-button-container"]';
   const DICTATE_BUTTON_SELECTOR = 'button[aria-label="Dictate button"]';
-  const CLAUDE_INPUT_AREA_SELECTOR = '[data-supermemory-icon-added="true"]';
+  const CLAUDE_BUTTONS_CONTAINER = '.relative.flex-1.flex.items-center.gap-2.shrink.min-w-0';
   const MEMORY_STATE_KEY = 'alchemyst_memory_enabled';
 
   function ensureButton() {
@@ -153,11 +153,11 @@ setInterval(() => {
       let target, parentFlex;
 
       if (windowUrl.includes('claude.ai')) {
-        // Claude.ai: Insert in the input area next to existing icons
-        const claudeInputArea = document.querySelector(CLAUDE_INPUT_AREA_SELECTOR);
-        if (!claudeInputArea) return;
-        target = claudeInputArea;
-        parentFlex = claudeInputArea.parentElement;
+        // Claude.ai: Insert in the buttons container (with plus and tools buttons)
+        const buttonsContainer = document.querySelector(CLAUDE_BUTTONS_CONTAINER);
+        if (!buttonsContainer) return;
+        target = buttonsContainer;
+        parentFlex = buttonsContainer;
       } else if (windowUrl.includes('chatgpt.com') || windowUrl.includes('chat.openai.com')) {
         // ChatGPT: Prefer to insert before the Dictate button; fallback to the voice container
         const dictateBtn = document.querySelector(DICTATE_BUTTON_SELECTOR);
@@ -284,8 +284,12 @@ setInterval(() => {
 
       // Insert based on platform
       if (windowUrl.includes('claude.ai')) {
-        // Claude: Insert after the existing input area
-        parent.insertBefore(wrapper, target.nextSibling);
+        // Claude: Insert in the buttons container (with plus and tools buttons)
+        try {
+          parentFlex.appendChild(wrapper);
+        } catch (e) {
+          console.log('Alchemyst: Failed to insert in Claude buttons container', e);
+        }
       } else if (windowUrl.includes('chatgpt.com') || windowUrl.includes('chat.openai.com')) {
         // ChatGPT: Insert before the target control (Dictate button wrapper preferred)
         parent.insertBefore(wrapper, target);
