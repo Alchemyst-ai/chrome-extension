@@ -13,8 +13,6 @@
   "description": "Carry your context with you while using AI tools using Alchemyst AI.",
   "permissions": [
     "storage",
-    "scripting",
-    "activeTab",
     "offscreen"
   ],
   "host_permissions": [
