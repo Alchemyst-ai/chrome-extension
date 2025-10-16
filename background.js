@@ -34,6 +34,75 @@ chrome.runtime.onConnect.addListener((port) => {
   port.onMessage.addListener(async (msg) => {
     console.log("[Port Message Received]:", msg?.type, "query:", msg?.query, "id:", msg?.id);
 
+    if (msg?.type === "addMemory") {
+      console.log('[addMemory] Received', { id: msg?.id, memoryId: msg?.memoryId, count: Array.isArray(msg?.contents) ? msg.contents.length : 'not-array' });
+      try {
+        const { alchemystApiKey } = await chrome.storage.local.get("alchemystApiKey");
+        if (!alchemystApiKey) {
+          if (!isDisconnected) {
+            try { 
+              port.postMessage({ id: msg.id, error: "No API key found." }); 
+            } catch (_) {}
+          }
+          return;
+        }
+
+        const payload = {
+          memoryId: msg.memoryId,
+          contents: Array.isArray(msg.contents) ? msg.contents : [],
+        };
+        console.log('[addMemory] Payload preview', { memoryId: payload.memoryId, count: payload.contents.length, first: payload.contents[0] });
+
+        const attempt = async (triesLeft, delayMs) => {
+          console.log(`[addMemory] Attempt ${4 - triesLeft}/3, delayMs=${delayMs}`);
+          const res = await fetch(
+            "https://platform-backend.getalchemystai.com/api/v1/context/memory/add",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${alchemystApiKey}`,
+              },
+              body: JSON.stringify(payload),
+            }
+          );
+          const text = await res.text().catch(() => "");
+          if (res.ok) {
+            console.log('[addMemory] Success response length:', text?.length || 0);
+            if (!isDisconnected) { 
+              try { 
+                port.postMessage({ id: msg.id, ok: true, body: text }); 
+              } catch (_) {} 
+            }
+            return true;
+          }
+          const status = res.status || 0;
+          console.error('[addMemory] HTTP failure', { status, body: text?.slice(0, 500) });
+          if (status >= 500 && status < 600 && triesLeft > 0) {
+            await new Promise((r) => setTimeout(r, delayMs));
+            return attempt(triesLeft - 1, delayMs * 2);
+          }
+          console.error("[Port] addMemory failed", status, text?.slice(0, 400));
+          if (!isDisconnected) { 
+            try { 
+              port.postMessage({ id: msg.id, error: `HTTP ${status}`, body: text }); 
+            } catch (_) {} 
+          }
+          return false;
+        };
+
+        await attempt(3, 1000);
+      } catch (err) {
+        console.error("[Port] addMemory error:", err);
+        if (!isDisconnected) {
+          try {
+            port.postMessage({ id: msg.id, error: "Failed to save memory" });
+          } catch (_) {}
+        }
+      }
+      return;
+    }
+
     if (msg?.type === "fetchContext") {
       // Guard: avoid network call for empty/whitespace-only queries
       const trimmedQuery = String(msg?.query || "").trim();
