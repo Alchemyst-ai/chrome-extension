@@ -13,7 +13,8 @@
   "description": "Carry your context with you while using AI tools using Alchemyst AI.",
   "permissions": [
     "storage",
-    "offscreen"
+    "offscreen",
+    "scripting"
   ],
   "host_permissions": [
     "https://chat.openai.com/*",
