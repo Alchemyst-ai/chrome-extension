@@ -10,7 +10,7 @@
   "homepage_url": "https://platform.getalchemystai.com",
   "name": "Alchemyst AI",
   "version": "0.0.1",
-  "description": "Carry your context with you while using AI tools using Alchemyst AI.",
+  "description": "Carry your context and memory with you while using AI tools using Alchemyst AI.",
   "permissions": [
     "storage",
     "offscreen"
