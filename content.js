@@ -79,6 +79,12 @@ document.addEventListener("keydown", async (e) => {
     const query = getPromptText(inputEl);
     if (!query) return;
 
+    // For Gemini, let the inpage script handle request interception
+    // Don't interfere with the Enter key for Gemini
+    if (window.location.hostname.includes('gemini.google.com')) {
+      return; // Let the natural flow continue
+    }
+
     if (alchemystInjectionInProgress) {
       // Allow the natural submit after we've injected once
       alchemystInjectionInProgress = false;
@@ -143,16 +149,48 @@ setInterval(() => {
   const VOICE_CONTAINER_SELECTOR = '[data-testid="composer-speech-button-container"]';
   const DICTATE_BUTTON_SELECTOR = 'button[aria-label="Dictate button"]';
   const CLAUDE_BUTTONS_CONTAINER = '.relative.flex-1.flex.items-center.gap-2.shrink.min-w-0';
+  const GEMINI_TOOLBOX_CONTAINER = '.leading-actions-wrapper, .input-area, .input-container, [data-testid="input-area"]';
   const MEMORY_STATE_KEY = 'alchemyst_memory_enabled';
 
   function ensureButton() {
     try {
-      // Check if we're on Claude.ai
+      // Check which platform we're on
       const windowUrl = window.location.hostname;
 
       let target, parentFlex;
 
-      if (windowUrl.includes('claude.ai')) {
+      if (windowUrl.includes('gemini.google.com')) {
+        // Gemini: Insert in the leading-actions-wrapper container
+        const toolboxContainer = document.querySelector('.leading-actions-wrapper');
+        if (toolboxContainer) {
+          target = toolboxContainer;
+          parentFlex = toolboxContainer;
+        } else {
+          // Try alternative selectors for Gemini
+          const alternatives = [
+            '.input-area',
+            '.input-container', 
+            '[data-testid="input-area"]',
+            '.composer-input',
+            '.chat-input',
+            'textarea[placeholder*="Enter a prompt"]',
+            'textarea[aria-label*="Enter a prompt"]'
+          ];
+          
+          for (const selector of alternatives) {
+            const altContainer = document.querySelector(selector);
+            if (altContainer) {
+              target = altContainer;
+              parentFlex = altContainer.parentElement || altContainer;
+              break;
+            }
+          }
+          
+          if (!target) {
+            return;
+          }
+        }
+      } else if (windowUrl.includes('claude.ai')) {
         // Claude.ai: Insert in the buttons container (with plus and tools buttons)
         const buttonsContainer = document.querySelector(CLAUDE_BUTTONS_CONTAINER);
         if (!buttonsContainer) return;
@@ -186,6 +224,13 @@ setInterval(() => {
       wrapper.style.borderRadius = '50%';
       wrapper.style.transition = 'opacity 0.2s';
       wrapper.style.opacity = '1';
+      
+      // Gemini-specific styling to match Material Design
+      if (windowUrl.includes('gemini.google.com')) {
+        wrapper.style.border = 'none';
+        wrapper.style.background = 'transparent';
+        wrapper.style.boxShadow = 'none';
+      }
       // Load initial state
       const isEnabled = localStorage.getItem(MEMORY_STATE_KEY) === 'true';
       wrapper.title = isEnabled ? 'Memory ON - Click to disable' : 'Memory OFF - Click to enable';
@@ -283,12 +328,26 @@ setInterval(() => {
       updateButtonState(isEnabled);
 
       // Insert based on platform
-      if (windowUrl.includes('claude.ai')) {
+      if (windowUrl.includes('gemini.google.com')) {
+        // Gemini: Insert in the leading-actions-wrapper
+        try {
+          // Find the leading-actions-wrapper specifically
+          const leadingActionsWrapper = document.querySelector('.leading-actions-wrapper');
+          if (leadingActionsWrapper) {
+            leadingActionsWrapper.appendChild(wrapper);
+          } else {
+            // Fallback to parentFlex if leading-actions-wrapper not found
+            parentFlex.appendChild(wrapper);
+          }
+        } catch (e) {
+          // Silent fail
+        }
+      } else if (windowUrl.includes('claude.ai')) {
         // Claude: Insert in the buttons container (with plus and tools buttons)
         try {
           parentFlex.appendChild(wrapper);
         } catch (e) {
-          console.log('Alchemyst: Failed to insert in Claude buttons container', e);
+          // Silent fail
         }
       } else if (windowUrl.includes('chatgpt.com') || windowUrl.includes('chat.openai.com')) {
         // ChatGPT: Insert before the target control (Dictate button wrapper preferred)
@@ -336,7 +395,7 @@ const pendingRequests = new Map();
     if (alchemystApiKey) {
       localStorage.setItem('alchemystApiKey', alchemystApiKey);
     }
-    console.log('Alchemyst: API key cached:', globalApiKey ? 'found' : 'not found');
+    // API key loaded
   } catch (err) {
     console.log('Alchemyst: failed to load API key:', err);
   }
