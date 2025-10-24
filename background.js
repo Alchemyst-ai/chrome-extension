@@ -1,3 +1,11 @@
+
+chrome.runtime.onInstalled.addListener(function (details) {
+  if (details.reason === 'install' || details.reason === 'update') {
+    // Set default URL (will be updated when user saves API key)
+    chrome.runtime.setUninstallURL('https://platform.getalchemystai.com/chrome-extension/feedback');
+  }
+});
+
 // Keep service worker alive - only handle keepAlive messages
 chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
   console.log("[Message Received]:", msg.type, "from:", sender.tab?.url || "unknown");
