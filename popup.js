@@ -2,7 +2,11 @@
   const { alchemystApiKey } = await chrome.storage.local.get(['alchemystApiKey']);
   console.log({ alchemystApiKey });
 
+  const manifest = chrome.runtime.getManifest();
+  const version = manifest.version;
+
   document.getElementById('apiKey').value = alchemystApiKey || '';
+  document.getElementById('versionContainer').innerHTML = `v${version}`;
   // document.getElementById('useApi').checked = useAlchemystApi || false;
 })();
 
@@ -29,9 +33,9 @@ function ensureStatusElement() {
 
 function showStatus(message, type, duration = 3000) {
   const el = ensureStatusElement();
-  
+
   el.textContent = message;
-  
+
   if (type === 'success') {
     el.style.background = 'rgba(255, 255, 255, 0.1)';
     el.style.color = '#ffffff';
@@ -48,15 +52,15 @@ function showStatus(message, type, duration = 3000) {
     el.style.border = '1px solid rgba(255, 255, 255, 0.2)';
     el.style.borderLeft = '3px solid #ffffff';
   }
-  
+
   el.style.display = 'block';
   el.style.borderRadius = '10px';
   el.style.padding = '12px';
   el.style.fontWeight = '600';
   el.style.animation = 'slideIn 0.3s ease-out';
-  
+
   clearTimeout(showStatus._t);
-  showStatus._t = setTimeout(() => { 
+  showStatus._t = setTimeout(() => {
     el.style.display = 'none';
     el.innerHTML = '';
   }, duration);
@@ -85,7 +89,7 @@ async function flashBadge(text, color) {
         chrome.action.setBadgeText({ text: '' });
       }, 3000);
     }
-  } catch (_) {}
+  } catch (_) { }
 }
 
 document.getElementById("saveKey").addEventListener("click", async () => {
@@ -120,7 +124,7 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   console.log('[Save Context] Active tab:', { id: tab?.id, url: tab?.url });
   setSavingState(true);
   showStatus('Saving context...', 'info');
-  
+
   if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com'))) {
     console.warn('[Save Context] Invalid tab URL:', tab?.url);
     showStatus('Please open a ChatGPT, Claude, or Gemini conversation first!', 'error');
@@ -141,13 +145,13 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   try {
     console.log('[Save Context] Executing scrape in tab...');
     console.time('[Save Context] executeScript');
-    
+
     // Show saving indicator on the website
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: showSavingIndicator,
     });
-    
+
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: scrapeConversation,
@@ -160,7 +164,7 @@ document.getElementById("saveContext").addEventListener("click", async () => {
       console.log('[Save Context] Extracted memoryId:', memoryId);
       console.log('[Save Context] Contents count:', Array.isArray(contents) ? contents.length : 'not-array');
       if (Array.isArray(contents)) console.log('[Save Context] First item sample:', contents[0]);
-      
+
       if (!contents || contents.length === 0) {
         console.warn('[Save Context] No contents extracted');
         showStatus('No conversation found to save!', 'error');
@@ -172,16 +176,16 @@ document.getElementById("saveContext").addEventListener("click", async () => {
       const port = chrome.runtime.connect({ name: "alchemyst" });
       const messageId = Date.now() + Math.random();
       console.log('[Save Context] Posting addMemory via port', { messageId, memoryId, count: contents.length });
-      
+
       port.onMessage.addListener((response) => {
         if (response.id === messageId) {
           console.log('[Save Context] Port response:', response);
-          try { port.disconnect(); } catch (_) {}
+          try { port.disconnect(); } catch (_) { }
           if (response.ok) {
             console.log('[Save Context] Success response received');
             showStatus('Context saved successfully!', 'success');
             setSavingState(false);
-            
+
             // Show success indicator on website
             console.log('[Save Context] Showing success indicator on website');
             chrome.scripting.executeScript({
@@ -190,7 +194,7 @@ document.getElementById("saveContext").addEventListener("click", async () => {
             }).catch(err => {
               console.error('[Save Context] Failed to show success indicator:', err);
             });
-            
+
             // Also show success indicator in popup as fallback
             setTimeout(() => {
               console.log('[Save Context] Showing success indicator in popup');
@@ -199,7 +203,7 @@ document.getElementById("saveContext").addEventListener("click", async () => {
           } else {
             showStatus(`Failed to save context: ${response.error || 'Unknown error'}`, 'error');
             setSavingState(false);
-            
+
             // Show error indicator on website
             chrome.scripting.executeScript({
               target: { tabId: tab.id },
@@ -222,28 +226,28 @@ document.getElementById("saveContext").addEventListener("click", async () => {
       console.error('[Save Context] Unexpected results format');
       showStatus('Failed to scrape conversation!', 'error');
       setSavingState(false);
-      
+
       // Show error indicator on website
       chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: showErrorIndicator,
         args: ['Failed to scrape conversation']
       });
-      
+
       console.timeEnd('[Save Context] total');
     }
   } catch (err) {
     console.error("[Save Context] Error:", err);
     showStatus('Error: ' + err.message, 'error');
     setSavingState(false);
-    
+
     // Show error indicator on website
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: showErrorIndicator,
       args: [err.message]
     });
-    
+
     console.timeEnd('[Save Context] total');
   }
 });
@@ -255,12 +259,12 @@ function scrapeConversation() {
     const url = window.location.href;
     console.log('[Scraper] URL:', url);
     let memoryId = '';
-    
+
     const chatgptMatch = url.match(/\/c\/([a-f0-9-]+)/);
     const claudeMatch = url.match(/\/chat\/([a-f0-9-]+)/);
     const geminiMatch = url.match(/\/app\/([a-f0-9]+)/);
     console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch });
-    
+
     if (chatgptMatch) {
       memoryId = chatgptMatch[1];
     } else if (claudeMatch) {
@@ -312,20 +316,20 @@ function scrapeConversation() {
     // Gemini branch: different DOM structure
     if (window.location.hostname.includes('gemini.google.com')) {
       console.log('[Scraper] Using Gemini selectors');
-      
+
       // Find all conversation containers
       const conversationContainers = document.querySelectorAll('.conversation-container');
       console.log('[Scraper] Found Gemini conversation containers:', conversationContainers.length);
-      
+
       conversationContainers.forEach((container, containerIdx) => {
         const containerId = container.id || `gemini-${containerIdx}-${Date.now()}`;
-        
+
         // Extract user queries
         const userQueries = container.querySelectorAll('user-query');
         userQueries.forEach((query, queryIdx) => {
           const textLines = query.querySelectorAll('.query-text-line');
           let contentText = '';
-          
+
           textLines.forEach((line) => {
             const text = (line.textContent || '').trim();
             if (text && text !== '') {
@@ -333,7 +337,7 @@ function scrapeConversation() {
               contentText += text;
             }
           });
-          
+
           if (contentText) {
             const messageId = `gemini-user-${containerId}-${queryIdx}-${Date.now()}`;
             const prefixed = `[user] ${contentText}`;
@@ -344,7 +348,7 @@ function scrapeConversation() {
             if (queryIdx < 2) console.log('[Scraper] Gemini user query added', { length: contentText.length });
           }
         });
-        
+
         // Extract model responses
         const modelResponses = container.querySelectorAll('model-response');
         modelResponses.forEach((response, responseIdx) => {
@@ -352,7 +356,7 @@ function scrapeConversation() {
           if (markdownContent) {
             const textElements = markdownContent.querySelectorAll('p, li, code, pre');
             let contentText = '';
-            
+
             textElements.forEach((el) => {
               const text = (el.textContent || '').trim();
               if (text) {
@@ -360,13 +364,13 @@ function scrapeConversation() {
                 contentText += text;
               }
             });
-            
+
             // Fallback: get all text from markdown if no specific elements found
             if (!contentText) {
               const fallback = (markdownContent.textContent || '').trim();
               if (fallback) contentText = fallback;
             }
-            
+
             if (contentText) {
               const messageId = `gemini-assistant-${containerId}-${responseIdx}-${Date.now()}`;
               const prefixed = `[assistant] ${contentText}`;
@@ -379,7 +383,7 @@ function scrapeConversation() {
           }
         });
       });
-      
+
       console.log('[Scraper] Gemini done', { count: contents.length });
       console.timeEnd('[Scraper] total');
       return { memoryId, contents };
@@ -388,16 +392,16 @@ function scrapeConversation() {
     // ChatGPT branch
     const articles = document.querySelectorAll('article[data-testid^="conversation-turn"]');
     console.log('[Scraper] Found articles:', articles.length);
-    
+
     articles.forEach((article, idx) => {
       const turnId = article.getAttribute('data-testid') || article.getAttribute('data-turn-id') || '';
       const messageId = turnId.replace('conversation-turn-', '') || `msg-${Date.now()}-${Math.random()}`;
       const role = article.getAttribute('data-turn') || (article.querySelector('[data-message-author-role]')?.getAttribute('data-message-author-role')) || 'unknown';
-      
+
       const bubble = article.querySelector('[data-message-author-role]') || article;
       const textElements = bubble.querySelectorAll('p, pre code, li, div.whitespace-pre-wrap');
       let contentText = '';
-      
+
       textElements.forEach((el) => {
         const text = (el.textContent || '').trim();
         if (text) {
@@ -405,13 +409,13 @@ function scrapeConversation() {
           contentText += text;
         }
       });
-      
+
       // Fallback: take the bubble's full text if granular elements didn't yield content
       if (!contentText) {
         const fallback = (bubble.textContent || '').trim();
         if (fallback) contentText = fallback;
       }
-      
+
       if (contentText) {
         const prefixed = `[${role}] ${contentText}`;
         contents.push({
@@ -440,7 +444,7 @@ function scrapeConversation() {
 function showSavingIndicator() {
   const existing = document.getElementById('alchemyst-overlay');
   if (existing) existing.remove();
-  
+
   const overlay = document.createElement('div');
   overlay.id = 'alchemyst-overlay';
   overlay.innerHTML = `
@@ -474,7 +478,7 @@ function showSavingIndicator() {
           animation: spin 1s linear infinite;
           margin: 0 auto 15px;
         "></div>
-        
+
         <div style="
           color: #ffffff;
           font-size: 16px;
@@ -482,16 +486,16 @@ function showSavingIndicator() {
         ">Saving to Alchemyst AI...</div>
       </div>
     </div>
-    
+
     <style>
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
     </style>
   `;
-  
+
   document.body.appendChild(overlay);
-  
+
   // Auto-remove after 30 seconds as fallback
   setTimeout(() => {
     const fallbackOverlay = document.getElementById('alchemyst-overlay');
@@ -509,7 +513,7 @@ function showSuccessIndicator() {
     console.log('[Success Indicator] Removing existing overlay');
     existing.remove();
   }
-  
+
   const overlay = document.createElement('div');
   overlay.id = 'alchemyst-overlay';
   overlay.innerHTML = `
@@ -549,14 +553,14 @@ function showSuccessIndicator() {
           font-weight: bold;
           animation: successPulse 0.6s ease-out;
         ">✓</div>
-        
+
         <div style="
           color: #ffffff;
           font-size: 16px;
           font-weight: 600;
           margin-bottom: 15px;
         ">Successfully Saved!</div>
-        
+
         <button onclick="this.closest('#alchemyst-overlay').remove()" style="
           background: #ffffff;
           color: #000000;
@@ -569,7 +573,7 @@ function showSuccessIndicator() {
         ">Close</button>
       </div>
     </div>
-    
+
     <style>
       @keyframes successPulse {
         0% { transform: scale(0.8); }
@@ -578,10 +582,10 @@ function showSuccessIndicator() {
       }
     </style>
   `;
-  
+
   document.body.appendChild(overlay);
   console.log('[Success Indicator] Overlay added to document');
-  
+
   // Auto-remove after 5 seconds (increased from 3)
   setTimeout(() => {
     console.log('[Success Indicator] Auto-removing overlay');
@@ -595,7 +599,7 @@ function showErrorIndicator(errorMessage) {
   // Remove any existing overlay
   const existing = document.getElementById('alchemyst-overlay');
   if (existing) existing.remove();
-  
+
   const overlay = document.createElement('div');
   overlay.id = 'alchemyst-overlay';
   overlay.innerHTML = `
@@ -633,20 +637,20 @@ function showErrorIndicator(errorMessage) {
           color: #000000;
           font-weight: bold;
         ">!</div>
-        
+
         <div style="
           color: #ffffff;
           font-size: 16px;
           font-weight: 600;
           margin-bottom: 10px;
         ">Save Failed</div>
-        
+
         <div style="
           color: #cccccc;
           font-size: 14px;
           margin-bottom: 15px;
         ">${errorMessage || 'Unknown error occurred'}</div>
-        
+
         <button onclick="
           this.closest('#alchemyst-overlay').remove();
           document.getElementById('saveContext').click();
@@ -663,9 +667,9 @@ function showErrorIndicator(errorMessage) {
       </div>
     </div>
   `;
-  
+
   document.body.appendChild(overlay);
-  
+
   // Auto-remove after 5 seconds
   setTimeout(() => {
     if (overlay && overlay.parentNode) {
