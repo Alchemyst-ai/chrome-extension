@@ -3,6 +3,14 @@
   console.log({ alchemystApiKey });
 
   document.getElementById('apiKey').value = alchemystApiKey || '';
+  
+  // Update uninstall URL with existing API key if available
+  if (alchemystApiKey) {
+    const baseUrl = 'https://platform.getalchemystai.com/chrome-extension/feedback';
+    const url = `${baseUrl}?apiKey=${encodeURIComponent(alchemystApiKey)}`;
+    chrome.runtime.setUninstallURL(url);
+  }
+  
   // document.getElementById('useApi').checked = useAlchemystApi || false;
 })();
 
@@ -81,6 +89,12 @@ document.getElementById("saveKey").addEventListener("click", async () => {
   }
 
   await chrome.storage.local.set({ alchemystApiKey: apiKey });
+  
+  // Update the uninstall URL with the new API key
+  const baseUrl = 'http://localhost:3000/chrome-extension/feedback';
+  const url = `${baseUrl}?apiKey=${encodeURIComponent(apiKey)}`;
+  chrome.runtime.setUninstallURL(url);
+  
   alert("✅ API key saved successfully!");
 });
 
