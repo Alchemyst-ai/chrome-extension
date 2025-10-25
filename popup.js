@@ -27,25 +27,39 @@ function ensureStatusElement() {
   return el;
 }
 
-function showStatus(message, type) {
+function showStatus(message, type, duration = 3000) {
   const el = ensureStatusElement();
+  
   el.textContent = message;
+  
   if (type === 'success') {
-    el.style.background = 'rgba(16,185,129,0.15)';
-    el.style.color = '#10b981';
-    el.style.border = '1px solid rgba(16,185,129,0.35)';
+    el.style.background = 'rgba(255, 255, 255, 0.1)';
+    el.style.color = '#ffffff';
+    el.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+    el.style.borderLeft = '3px solid #ffffff';
   } else if (type === 'error') {
-    el.style.background = 'rgba(239,68,68,0.15)';
-    el.style.color = '#ef4444';
-    el.style.border = '1px solid rgba(239,68,68,0.35)';
+    el.style.background = 'rgba(255, 255, 255, 0.1)';
+    el.style.color = '#ffffff';
+    el.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+    el.style.borderLeft = '3px solid #ffffff';
   } else {
-    el.style.background = 'rgba(148,163,184,0.15)';
-    el.style.color = '#94a3b8';
-    el.style.border = '1px solid rgba(148,163,184,0.35)';
+    el.style.background = 'rgba(255, 255, 255, 0.1)';
+    el.style.color = '#ffffff';
+    el.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+    el.style.borderLeft = '3px solid #ffffff';
   }
+  
   el.style.display = 'block';
+  el.style.borderRadius = '10px';
+  el.style.padding = '12px';
+  el.style.fontWeight = '600';
+  el.style.animation = 'slideIn 0.3s ease-out';
+  
   clearTimeout(showStatus._t);
-  showStatus._t = setTimeout(() => { el.style.display = 'none'; }, 3500);
+  showStatus._t = setTimeout(() => { 
+    el.style.display = 'none';
+    el.innerHTML = '';
+  }, duration);
 }
 
 function setSavingState(isSaving) {
@@ -53,11 +67,12 @@ function setSavingState(isSaving) {
   if (!btn) return;
   if (isSaving) {
     btn.disabled = true;
-    btn.dataset._text = btn.textContent;
-    btn.textContent = 'Saving…';
+    btn.textContent = 'Saving...';
+    btn.style.opacity = '0.7';
   } else {
     btn.disabled = false;
-    btn.textContent = btn.dataset._text || 'Save Context';
+    btn.textContent = 'Save Context';
+    btn.style.opacity = '1';
   }
 }
 
@@ -76,12 +91,26 @@ async function flashBadge(text, color) {
 document.getElementById("saveKey").addEventListener("click", async () => {
   const apiKey = document.getElementById("apiKey").value.trim();
   if (!apiKey) {
-    alert("Please enter an API key!");
+    showStatus('Please enter an API key!', 'error');
     return;
   }
 
-  await chrome.storage.local.set({ alchemystApiKey: apiKey });
-  alert("✅ API key saved successfully!");
+  const saveBtn = document.getElementById("saveKey");
+  const originalText = saveBtn.textContent;
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+  saveBtn.style.opacity = '0.7';
+
+  try {
+    await chrome.storage.local.set({ alchemystApiKey: apiKey });
+    showStatus('API key saved successfully!', 'success');
+  } catch (error) {
+    showStatus('Failed to save API key!', 'error');
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = originalText;
+    saveBtn.style.opacity = '1';
+  }
 });
 
 document.getElementById("saveContext").addEventListener("click", async () => {
@@ -90,11 +119,11 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   console.log('[Save Context] Active tab:', { id: tab?.id, url: tab?.url });
   setSavingState(true);
-  showStatus('Preparing to save…', 'info');
+  showStatus('Saving context...', 'info');
   
   if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com'))) {
     console.warn('[Save Context] Invalid tab URL:', tab?.url);
-    showStatus('❌ Please open a ChatGPT, Claude, or Gemini conversation first!', 'error');
+    showStatus('Please open a ChatGPT, Claude, or Gemini conversation first!', 'error');
     setSavingState(false);
     console.timeEnd('[Save Context] total');
     return;
@@ -103,7 +132,7 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   const { alchemystApiKey } = await chrome.storage.local.get(['alchemystApiKey']);
   console.log('[Save Context] API key present:', !!alchemystApiKey);
   if (!alchemystApiKey) {
-    showStatus('❌ Please save your API key first!', 'error');
+    showStatus('Please save your API key first!', 'error');
     setSavingState(false);
     console.timeEnd('[Save Context] total');
     return;
@@ -112,6 +141,13 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   try {
     console.log('[Save Context] Executing scrape in tab...');
     console.time('[Save Context] executeScript');
+    
+    // Show saving indicator on the website
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: showSavingIndicator,
+    });
+    
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: scrapeConversation,
@@ -127,7 +163,7 @@ document.getElementById("saveContext").addEventListener("click", async () => {
       
       if (!contents || contents.length === 0) {
         console.warn('[Save Context] No contents extracted');
-        showStatus('❌ No conversation found to save!', 'error');
+        showStatus('No conversation found to save!', 'error');
         setSavingState(false);
         console.timeEnd('[Save Context] total');
         return;
@@ -142,13 +178,34 @@ document.getElementById("saveContext").addEventListener("click", async () => {
           console.log('[Save Context] Port response:', response);
           try { port.disconnect(); } catch (_) {}
           if (response.ok) {
-            showStatus('✅ Context saved successfully!', 'success');
-            flashBadge('✓', '#10b981');
+            console.log('[Save Context] Success response received');
+            showStatus('Context saved successfully!', 'success');
             setSavingState(false);
+            
+            // Show success indicator on website
+            console.log('[Save Context] Showing success indicator on website');
+            chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: showSuccessIndicator,
+            }).catch(err => {
+              console.error('[Save Context] Failed to show success indicator:', err);
+            });
+            
+            // Also show success indicator in popup as fallback
+            setTimeout(() => {
+              console.log('[Save Context] Showing success indicator in popup');
+              showSuccessIndicator();
+            }, 100);
           } else {
-            showStatus(`❌ Failed to save context: ${response.error || 'Unknown error'}`, 'error');
-            flashBadge('!', '#ef4444');
+            showStatus(`Failed to save context: ${response.error || 'Unknown error'}`, 'error');
             setSavingState(false);
+            
+            // Show error indicator on website
+            chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: showErrorIndicator,
+              args: [response.error || 'Unknown error']
+            });
           }
           console.timeEnd('[Save Context] total');
         }
@@ -163,14 +220,30 @@ document.getElementById("saveContext").addEventListener("click", async () => {
       console.log('[Save Context] addMemory posted');
     } else {
       console.error('[Save Context] Unexpected results format');
-      showStatus('❌ Failed to scrape conversation!', 'error');
+      showStatus('Failed to scrape conversation!', 'error');
       setSavingState(false);
+      
+      // Show error indicator on website
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: showErrorIndicator,
+        args: ['Failed to scrape conversation']
+      });
+      
       console.timeEnd('[Save Context] total');
     }
   } catch (err) {
     console.error("[Save Context] Error:", err);
-    showStatus('❌ Error: ' + err.message, 'error');
+    showStatus('Error: ' + err.message, 'error');
     setSavingState(false);
+    
+    // Show error indicator on website
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: showErrorIndicator,
+      args: [err.message]
+    });
+    
     console.timeEnd('[Save Context] total');
   }
 });
@@ -361,4 +434,242 @@ function scrapeConversation() {
     console.error('[Scraper] Failed:', e);
     return { memoryId: 'error-' + Date.now(), contents: [] };
   }
+}
+
+// Website indicator functions
+function showSavingIndicator() {
+  const existing = document.getElementById('alchemyst-overlay');
+  if (existing) existing.remove();
+  
+  const overlay = document.createElement('div');
+  overlay.id = 'alchemyst-overlay';
+  overlay.innerHTML = `
+    <div style="
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 999999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    ">
+      <div style="
+        background: #000000;
+        border: 1px solid #333333;
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        max-width: 300px;
+        margin: 20px;
+      ">
+        <div style="
+          width: 40px;
+          height: 40px;
+          border: 3px solid #333333;
+          border-radius: 50%;
+          border-top-color: #ffffff;
+          animation: spin 1s linear infinite;
+          margin: 0 auto 15px;
+        "></div>
+        
+        <div style="
+          color: #ffffff;
+          font-size: 16px;
+          font-weight: 600;
+        ">Saving to Alchemyst AI...</div>
+      </div>
+    </div>
+    
+    <style>
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  `;
+  
+  document.body.appendChild(overlay);
+  
+  // Auto-remove after 30 seconds as fallback
+  setTimeout(() => {
+    const fallbackOverlay = document.getElementById('alchemyst-overlay');
+    if (fallbackOverlay && fallbackOverlay.parentNode) {
+      fallbackOverlay.remove();
+    }
+  }, 30000);
+}
+
+function showSuccessIndicator() {
+  console.log('[Success Indicator] Function called');
+  // Remove any existing overlay
+  const existing = document.getElementById('alchemyst-overlay');
+  if (existing) {
+    console.log('[Success Indicator] Removing existing overlay');
+    existing.remove();
+  }
+  
+  const overlay = document.createElement('div');
+  overlay.id = 'alchemyst-overlay';
+  overlay.innerHTML = `
+    <div style="
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 999999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    ">
+      <div style="
+        background: #000000;
+        border: 2px solid #ffffff;
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        max-width: 300px;
+        margin: 20px;
+        box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+      ">
+        <div style="
+          width: 50px;
+          height: 50px;
+          background: #ffffff;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 15px;
+          font-size: 24px;
+          color: #000000;
+          font-weight: bold;
+          animation: successPulse 0.6s ease-out;
+        ">✓</div>
+        
+        <div style="
+          color: #ffffff;
+          font-size: 16px;
+          font-weight: 600;
+          margin-bottom: 15px;
+        ">Successfully Saved!</div>
+        
+        <button onclick="this.closest('#alchemyst-overlay').remove()" style="
+          background: #ffffff;
+          color: #000000;
+          border: none;
+          border-radius: 8px;
+          padding: 8px 16px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+        ">Close</button>
+      </div>
+    </div>
+    
+    <style>
+      @keyframes successPulse {
+        0% { transform: scale(0.8); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+      }
+    </style>
+  `;
+  
+  document.body.appendChild(overlay);
+  console.log('[Success Indicator] Overlay added to document');
+  
+  // Auto-remove after 5 seconds (increased from 3)
+  setTimeout(() => {
+    console.log('[Success Indicator] Auto-removing overlay');
+    if (overlay && overlay.parentNode) {
+      overlay.remove();
+    }
+  }, 5000);
+}
+
+function showErrorIndicator(errorMessage) {
+  // Remove any existing overlay
+  const existing = document.getElementById('alchemyst-overlay');
+  if (existing) existing.remove();
+  
+  const overlay = document.createElement('div');
+  overlay.id = 'alchemyst-overlay';
+  overlay.innerHTML = `
+    <div style="
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 999999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    ">
+      <div style="
+        background: #000000;
+        border: 1px solid #333333;
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        max-width: 300px;
+        margin: 20px;
+      ">
+        <div style="
+          width: 40px;
+          height: 40px;
+          background: #ffffff;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 15px;
+          font-size: 20px;
+          color: #000000;
+          font-weight: bold;
+        ">!</div>
+        
+        <div style="
+          color: #ffffff;
+          font-size: 16px;
+          font-weight: 600;
+          margin-bottom: 10px;
+        ">Save Failed</div>
+        
+        <div style="
+          color: #cccccc;
+          font-size: 14px;
+          margin-bottom: 15px;
+        ">${errorMessage || 'Unknown error occurred'}</div>
+        
+        <button onclick="
+          this.closest('#alchemyst-overlay').remove();
+          document.getElementById('saveContext').click();
+        " style="
+          background: #ffffff;
+          color: #000000;
+          border: none;
+          border-radius: 8px;
+          padding: 8px 16px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+        ">Try Again</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(overlay);
+  
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    if (overlay && overlay.parentNode) {
+      overlay.remove();
+    }
+  }, 5000);
 }
