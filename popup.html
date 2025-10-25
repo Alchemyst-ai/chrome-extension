@@ -96,6 +96,45 @@
       font-weight: 400;
     }
     
+    .api-key-cta {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    
+    .api-key-cta h3 {
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 500;
+      margin: 0;
+    }
+    
+    .cta-button {
+      color: #000000;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 16px;
+      border: 2px solid #ffffff;
+      border-radius: 8px;
+      display: inline-block;
+      transition: all 0.3s ease;
+      background: #ffffff;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    
+    .cta-button:hover {
+      background: #000000;
+      color: #ffffff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+    }
+    
     .actions {
       display: flex;
       gap: 10px;
@@ -379,6 +418,12 @@
         <label for="apiKey">Alchemyst API Key</label>
         <div class="input-wrapper">
           <input type="text" id="apiKey" placeholder="Enter your API key to get started">
+        </div>
+        <div class="api-key-cta">
+          <h3>Don't have an API key?</h3>
+          <a href="https://platform.getalchemystai.com/getstarted" target="_blank" class="cta-button">
+            Get API Key
+          </a>
         </div>
       </div>
       
