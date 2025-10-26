@@ -269,3 +269,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 });
+
+// Set uninstall URL when extension is installed or updated
+chrome.runtime.onInstalled.addListener(async (details) => {
+  console.log("[Install] Extension installed/updated:", details.reason);
+  
+  // Set the PostHog survey as the uninstall URL
+  try {
+    await chrome.runtime.setUninstallURL("https://us.posthog.com/external_surveys/019a1b80-4e96-0000-fe73-12e14a6b6cac");
+    console.log("[Install] Uninstall URL set to PostHog survey");
+  } catch (error) {
+    console.error("[Install] Failed to set uninstall URL:", error);
+  }
+});
