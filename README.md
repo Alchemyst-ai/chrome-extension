@@ -1,10 +1,10 @@
 # Alchemyst Context Layer Chrome Extension
 
-A Chrome extension that enriches ChatGPT and Claude prompts with relevant context from your knowledge base.
+A Chrome extension that enriches ChatGPT, Claude, Gemini, and v0 prompts with relevant context from your knowledge base.
 
 ## Features
 
-- Seamlessly integrates with ChatGPT and Claude.ai interfaces
+- Seamlessly integrates with ChatGPT, Claude.ai, Gemini, and v0 interfaces
 - Injects relevant context from your Alchemyst knowledge base into prompts
 - Toggle memory/context injection with a single click
 - Simple API key configuration
@@ -20,7 +20,7 @@ A Chrome extension that enriches ChatGPT and Claude prompts with relevant contex
 
 1. Click the extension icon in Chrome
 2. Enter your Alchemyst API key and click "Save"
-3. Navigate to ChatGPT or Claude.ai
+3. Navigate to ChatGPT, Claude.ai, Gemini, or v0
 4. Use the Alchemyst memory button (next to the input area) to toggle context injection
 5. Type your prompts normally - context will be automatically injected when enabled
 
@@ -54,4 +54,6 @@ The extension uses Chrome Extension Manifest V3 and includes:
 - `https://chat.openai.com/*`
 - `https://chatgpt.com/*`
 - `https://claude.ai/*`
+- `https://gemini.google.com/*`
+- `https://v0.app/*`
 - `https://platform-backend.getalchemystai.com/*`

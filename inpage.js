@@ -1,8 +1,9 @@
 (function () {
-  // Match ChatGPT conversation POST, Claude completion endpoint, and Gemini StreamGenerate
+  // Match ChatGPT conversation POST, Claude completion endpoint, Gemini StreamGenerate, and v0 chat API
   const CHATGPT_ENDPOINT_REGEX = /\/backend-api\/f\/conversation(?:\?|$)/;
   const CLAUDE_ENDPOINT_REGEX = /\/api\/organizations\/[^\/]+\/chat_conversations\/[^\/]+\/completion$/;
   const GEMINI_ENDPOINT_REGEX = /\/_\/BardChatUi\/data\/assistant\.lamda\.BardFrontendService\/StreamGenerate/;
+  const V0_ENDPOINT_REGEX = /\/chat\/api\/chat$/;
   
   function shouldInterceptChatGPT(input, init) {
     try {
@@ -31,6 +32,15 @@
     } catch (_) { return false; }
   }
 
+  function shouldInterceptV0(input, init) {
+    try {
+      const url = extractUrl(input, init);
+      const should = typeof url === 'string' && V0_ENDPOINT_REGEX.test(url);
+      // Intercepting v0 request
+      return should;
+    } catch (_) { return false; }
+  }
+
   // Get API key from localStorage
   const apiKey = localStorage.getItem('alchemystApiKey');
 
@@ -44,7 +54,7 @@
   }
 
   function shouldIntercept(input, init) {
-    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init);
+    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init);
   }
 
   async function enrichPayload(bodyText, url) {
@@ -78,7 +88,7 @@
           // Failed to parse Gemini payload
         }
       } else {
-        // ChatGPT or Claude format (JSON payload)
+        // ChatGPT, Claude, or v0 format (JSON payload)
         const payload = JSON.parse(bodyText);
         
         if (url && CHATGPT_ENDPOINT_REGEX.test(url)) {
@@ -88,6 +98,9 @@
         } else if (url && CLAUDE_ENDPOINT_REGEX.test(url)) {
           // Claude format
           userText = payload?.prompt || '';
+        } else if (url && V0_ENDPOINT_REGEX.test(url)) {
+          // v0 format
+          userText = payload?.messageContent?.parts?.[0]?.content || '';
         }
       }
       
@@ -158,7 +171,7 @@
             return bodyText;
           }
         } else {
-          // ChatGPT or Claude format
+          // ChatGPT, Claude, or v0 format
           const payload = JSON.parse(bodyText);
           
           if (url && CHATGPT_ENDPOINT_REGEX.test(url)) {
@@ -170,6 +183,11 @@
           } else if (url && CLAUDE_ENDPOINT_REGEX.test(url)) {
             // Claude format
             payload.prompt = enriched;
+          } else if (url && V0_ENDPOINT_REGEX.test(url)) {
+            // v0 format
+            if (payload?.messageContent?.parts?.[0]) {
+              payload.messageContent.parts[0].content = enriched;
+            }
           }
           
           return JSON.stringify(payload);

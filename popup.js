@@ -125,9 +125,9 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   setSavingState(true);
   showStatus('Saving context...', 'info');
 
-  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com'))) {
+  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app'))) {
     console.warn('[Save Context] Invalid tab URL:', tab?.url);
-    showStatus('Please open a ChatGPT, Claude, or Gemini conversation first!', 'error');
+    showStatus('Please open a ChatGPT, Claude, Gemini, or v0 conversation first!', 'error');
     setSavingState(false);
     console.timeEnd('[Save Context] total');
     return;
@@ -263,7 +263,8 @@ function scrapeConversation() {
     const chatgptMatch = url.match(/\/c\/([a-f0-9-]+)/);
     const claudeMatch = url.match(/\/chat\/([a-f0-9-]+)/);
     const geminiMatch = url.match(/\/app\/([a-f0-9]+)/);
-    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch });
+    const v0Match = url.match(/\/chat\/([a-zA-Z0-9-_]+)/);
+    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match });
 
     if (chatgptMatch) {
       memoryId = chatgptMatch[1];
@@ -271,6 +272,8 @@ function scrapeConversation() {
       memoryId = claudeMatch[1];
     } else if (geminiMatch) {
       memoryId = geminiMatch[1];
+    } else if (v0Match) {
+      memoryId = v0Match[1];
     } else {
       memoryId = 'unknown-' + Date.now();
     }
@@ -385,6 +388,52 @@ function scrapeConversation() {
       });
 
       console.log('[Scraper] Gemini done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    // v0.app branch: different DOM structure
+    if (window.location.hostname.includes('v0.app')) {
+      console.log('[Scraper] Using v0 selectors');
+      const messages = Array.from(document.querySelectorAll('[data-testid="message"]'));
+      console.log('[Scraper] Found v0 messages:', messages.length);
+      
+      messages.forEach((message, idx) => {
+        const messageId = message.id || `v0-msg-${idx}-${Date.now()}`;
+        
+        // Determine role based on CSS classes
+        const isUser = message.classList.contains('origin-right') && message.classList.contains('items-end');
+        const role = isUser ? 'user' : 'assistant';
+        
+        // Extract text content from prose elements
+        const proseElements = message.querySelectorAll('.prose p, .prose li, .prose code, .prose pre');
+        let contentText = '';
+        
+        proseElements.forEach((el) => {
+          const text = (el.textContent || '').trim();
+          if (text) {
+            if (contentText) contentText += '\n';
+            contentText += text;
+          }
+        });
+        
+        // Fallback: get all text from the message if no prose elements found
+        if (!contentText) {
+          const fallback = (message.textContent || '').trim();
+          if (fallback) contentText = fallback;
+        }
+        
+        if (contentText) {
+          const prefixed = `[${role}] ${contentText}`;
+          contents.push({
+            content: prefixed,
+            metadata: { source: memoryId, messageId }
+          });
+          if (idx < 2) console.log('[Scraper] v0 added', { role, length: contentText.length });
+        }
+      });
+      
+      console.log('[Scraper] v0 done', { count: contents.length });
       console.timeEnd('[Scraper] total');
       return { memoryId, contents };
     }

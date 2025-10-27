@@ -73,7 +73,11 @@ function fetchContextViaPort(query) {
 
 document.addEventListener("keydown", async (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
-    const inputEl = document.querySelector('#prompt-textarea') || document.querySelector('textarea') || document.querySelector('[contenteditable="true"]');
+    const inputEl = document.querySelector('#prompt-textarea') || 
+                    document.querySelector('textarea') || 
+                    document.querySelector('[contenteditable="true"]') ||
+                    document.querySelector('.tiptap.ProseMirror') ||
+                    document.querySelector('[data-editor="true"]');
     if (!inputEl) return;
 
     const query = getPromptText(inputEl);
@@ -118,7 +122,10 @@ document.addEventListener("keydown", async (e) => {
     }
 
     const submit = () => {
-      const btn = document.getElementById('composer-submit-button') || document.querySelector('#composer-submit-button');
+      const btn = document.getElementById('composer-submit-button') || 
+                  document.querySelector('#composer-submit-button') ||
+                  document.querySelector('[data-testid="prompt-form-send-button"]') ||
+                  document.querySelector('button[type="submit"]');
       alchemystInjectionInProgress = true;
       if (btn) { btn.click(); return; }
       const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true });
@@ -196,6 +203,26 @@ setInterval(() => {
         if (!buttonsContainer) return;
         target = buttonsContainer;
         parentFlex = buttonsContainer;
+      } else if (windowUrl.includes('v0.app')) {
+        // v0: Insert in the right toolbar (ml-auto flex items-center gap-0.5 sm:gap-1)
+        const rightToolbar = document.querySelector('.ml-auto.flex.items-center.gap-0\\.5') ||
+                            document.querySelector('[class*="ml-auto"][class*="flex"][class*="items-center"]') ||
+                            document.querySelector('div[class*="ml-auto"]');
+        
+        if (rightToolbar) {
+          // Insert in the right toolbar as the first button
+          parentFlex = rightToolbar;
+          target = rightToolbar.firstElementChild; // Insert before the first button
+        } else {
+          // Fallback: try to find any container with the send button
+          const sendButton = document.querySelector('[data-testid="prompt-form-send-button"]');
+          if (sendButton) {
+            parentFlex = sendButton.parentElement;
+            target = sendButton;
+          } else {
+            return;
+          }
+        }
       } else if (windowUrl.includes('chatgpt.com') || windowUrl.includes('chat.openai.com')) {
         // ChatGPT: Prefer to insert before the Dictate button; fallback to the voice container
         const dictateBtn = document.querySelector(DICTATE_BUTTON_SELECTOR);
@@ -230,6 +257,13 @@ setInterval(() => {
         wrapper.style.border = 'none';
         wrapper.style.background = 'transparent';
         wrapper.style.boxShadow = 'none';
+      }
+      // v0-specific styling to match the platform design
+      if (windowUrl.includes('v0.app')) {
+        wrapper.style.border = 'none';
+        wrapper.style.background = 'transparent';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.marginRight = '8px';
       }
       // Load initial state
       const isEnabled = localStorage.getItem(MEMORY_STATE_KEY) === 'true';
@@ -346,6 +380,19 @@ setInterval(() => {
         // Claude: Insert in the buttons container (with plus and tools buttons)
         try {
           parentFlex.appendChild(wrapper);
+        } catch (e) {
+          // Silent fail
+        }
+      } else if (windowUrl.includes('v0.app')) {
+        // v0: Insert in the toolbar left section as the first button
+        try {
+          if (target && target !== parentFlex) {
+            // Insert before the first button in the toolbar
+            parentFlex.insertBefore(wrapper, target);
+          } else {
+            // Insert at the beginning of the toolbar
+            parentFlex.insertBefore(wrapper, parentFlex.firstChild);
+          }
         } catch (e) {
           // Silent fail
         }
