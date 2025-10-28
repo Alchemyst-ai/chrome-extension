@@ -1,9 +1,10 @@
 (function () {
-  // Match ChatGPT conversation POST, Claude completion endpoint, Gemini StreamGenerate, and v0 chat API
+  // Match ChatGPT conversation POST, Claude completion endpoint, Gemini StreamGenerate, v0 chat API, and Lovable chat API
   const CHATGPT_ENDPOINT_REGEX = /\/backend-api\/f\/conversation(?:\?|$)/;
   const CLAUDE_ENDPOINT_REGEX = /\/api\/organizations\/[^\/]+\/chat_conversations\/[^\/]+\/completion$/;
   const GEMINI_ENDPOINT_REGEX = /\/_\/BardChatUi\/data\/assistant\.lamda\.BardFrontendService\/StreamGenerate/;
   const V0_ENDPOINT_REGEX = /\/chat\/api\/chat$/;
+  const LOVABLE_ENDPOINT_REGEX = /\/projects\/([a-f0-9-]+)\/chat$/;
   
   function shouldInterceptChatGPT(input, init) {
     try {
@@ -41,6 +42,15 @@
     } catch (_) { return false; }
   }
 
+  function shouldInterceptLovable(input, init) {
+    try {
+      const url = extractUrl(input, init);
+      const should = typeof url === 'string' && LOVABLE_ENDPOINT_REGEX.test(url);
+      // Intercepting Lovable request
+      return should;
+    } catch (_) { return false; }
+  }
+
   // Get API key from localStorage
   const apiKey = localStorage.getItem('alchemystApiKey');
 
@@ -54,7 +64,7 @@
   }
 
   function shouldIntercept(input, init) {
-    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init);
+    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init);
   }
 
   async function enrichPayload(bodyText, url) {
@@ -101,6 +111,9 @@
         } else if (url && V0_ENDPOINT_REGEX.test(url)) {
           // v0 format
           userText = payload?.messageContent?.parts?.[0]?.content || '';
+        } else if (url && LOVABLE_ENDPOINT_REGEX.test(url)) {
+          // Lovable format
+          userText = payload?.message || '';
         }
       }
       
@@ -188,6 +201,9 @@
             if (payload?.messageContent?.parts?.[0]) {
               payload.messageContent.parts[0].content = enriched;
             }
+          } else if (url && LOVABLE_ENDPOINT_REGEX.test(url)) {
+            // Lovable format
+            payload.message = enriched;
           }
           
           return JSON.stringify(payload);

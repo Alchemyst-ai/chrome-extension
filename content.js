@@ -223,6 +223,26 @@ setInterval(() => {
             return;
           }
         }
+      } else if (windowUrl.includes('lovable.dev')) {
+        // Lovable: Insert into the form toolbar on the right (ml-auto flex items-center gap-1)
+        const form = document.querySelector('form#chat-input');
+        let toolbar = null;
+        if (form) {
+          toolbar = form.querySelector('.ml-auto.flex.items-center.gap-1') || form.querySelector('.ml-auto');
+        }
+        if (toolbar) {
+          parentFlex = toolbar;
+          target = toolbar.firstElementChild || toolbar;
+        } else {
+          // Fallback: try send button parent
+          const sendBtn = document.getElementById('chatinput-send-message-button') || form?.querySelector('#chatinput-send-message-button');
+          if (sendBtn && sendBtn.parentElement) {
+            parentFlex = sendBtn.parentElement;
+            target = sendBtn;
+          } else {
+            return;
+          }
+        }
       } else if (windowUrl.includes('chatgpt.com') || windowUrl.includes('chat.openai.com')) {
         // ChatGPT: Prefer to insert before the Dictate button; fallback to the voice container
         const dictateBtn = document.querySelector(DICTATE_BUTTON_SELECTOR);
@@ -391,6 +411,17 @@ setInterval(() => {
             parentFlex.insertBefore(wrapper, target);
           } else {
             // Insert at the beginning of the toolbar
+            parentFlex.insertBefore(wrapper, parentFlex.firstChild);
+          }
+        } catch (e) {
+          // Silent fail
+        }
+      } else if (windowUrl.includes('lovable.dev')) {
+        // Lovable: Insert in the right toolbar
+        try {
+          if (target && target !== parentFlex) {
+            parentFlex.insertBefore(wrapper, target);
+          } else {
             parentFlex.insertBefore(wrapper, parentFlex.firstChild);
           }
         } catch (e) {

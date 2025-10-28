@@ -21,6 +21,8 @@
     "https://chatgpt.com/*",
     "https://claude.ai/*",
     "https://gemini.google.com/*",
+    "https://lovable.dev/*",
+    "https://lovable-api.com/*",
     "https://v0.app/*",
     "https://platform-backend.getalchemystai.com/*"
   ],
@@ -34,6 +36,7 @@
         "https://chatgpt.com/*",
         "https://claude.ai/*",
         "https://gemini.google.com/*",
+        "https://lovable.dev/*",
         "https://v0.app/*"
       ],
       "js": [
@@ -52,6 +55,7 @@
         "https://chatgpt.com/*",
         "https://claude.ai/*",
         "https://gemini.google.com/*",
+        "https://lovable.dev/*",
         "https://v0.app/*"
       ]
     }
