@@ -1,10 +1,11 @@
 (function () {
-  // Match ChatGPT conversation POST, Claude completion endpoint, Gemini StreamGenerate, v0 chat API, and Lovable chat API
+  // Match ChatGPT conversation POST, Claude completion endpoint, Gemini StreamGenerate, v0 chat API, Lovable chat API, and Perplexity ask endpoint
   const CHATGPT_ENDPOINT_REGEX = /\/backend-api\/f\/conversation(?:\?|$)/;
   const CLAUDE_ENDPOINT_REGEX = /\/api\/organizations\/[^\/]+\/chat_conversations\/[^\/]+\/completion$/;
   const GEMINI_ENDPOINT_REGEX = /\/_\/BardChatUi\/data\/assistant\.lamda\.BardFrontendService\/StreamGenerate/;
   const V0_ENDPOINT_REGEX = /\/chat\/api\/chat$/;
   const LOVABLE_ENDPOINT_REGEX = /\/projects\/([a-f0-9-]+)\/chat$/;
+  const PERPLEXITY_ENDPOINT_REGEX = /\/rest\/sse\/perplexity_ask$/;
   
   function shouldInterceptChatGPT(input, init) {
     try {
@@ -51,12 +52,22 @@
     } catch (_) { return false; }
   }
 
+  function shouldInterceptPerplexity(input, init) {
+    try {
+      const url = extractUrl(input, init);
+      const should = typeof url === 'string' && PERPLEXITY_ENDPOINT_REGEX.test(url);
+      return should;
+    } catch (_) { return false; }
+  }
+
   // Get API key from localStorage
   const apiKey = localStorage.getItem('alchemystApiKey');
 
   function extractUrl(input, init) {
     try {
       if (typeof input === 'string') return input;
+      // Support URL objects
+      if (input instanceof URL) return input.toString();
       if (input && typeof input.url === 'string') return input.url;
       if (init && typeof init.url === 'string') return init.url;
     } catch (_) { }
@@ -64,7 +75,36 @@
   }
 
   function shouldIntercept(input, init) {
-    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init);
+    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init) || shouldInterceptPerplexity(input, init);
+  }
+
+  function handleSSEIfApplicable(response, url) {
+    try {
+      const contentType = response && response.headers && response.headers.get && response.headers.get('content-type');
+      if (contentType && contentType.includes('text/event-stream')) {
+        const originalBody = response.body;
+        if (!originalBody || !originalBody.getReader) return response;
+        const reader = originalBody.getReader();
+        const stream = new ReadableStream({
+          start(controller) {
+            const decoder = new TextDecoder();
+            (function pump() {
+              reader.read().then(({ done, value }) => {
+                if (done) { controller.close(); return; }
+                try {
+                  const text = decoder.decode(value, { stream: true });
+                  try { window.postMessage({ type: 'ALCHEMYST_SSE_CHUNK', url, chunk: text }, '*'); } catch (_) { }
+                } catch (_) { }
+                try { controller.enqueue(value); } catch (_) { }
+                pump();
+              }).catch((e) => { try { controller.error(e); } catch (_) { } });
+            })();
+          }
+        });
+        return new Response(stream, { headers: response.headers, status: response.status, statusText: response.statusText });
+      }
+    } catch (_) { }
+    return response;
   }
 
   async function enrichPayload(bodyText, url) {
@@ -98,7 +138,7 @@
           // Failed to parse Gemini payload
         }
       } else {
-        // ChatGPT, Claude, or v0 format (JSON payload)
+        // ChatGPT, Claude, v0, Lovable, or Perplexity format (JSON payload)
         const payload = JSON.parse(bodyText);
         
         if (url && CHATGPT_ENDPOINT_REGEX.test(url)) {
@@ -114,6 +154,9 @@
         } else if (url && LOVABLE_ENDPOINT_REGEX.test(url)) {
           // Lovable format
           userText = payload?.message || '';
+        } else if (url && PERPLEXITY_ENDPOINT_REGEX.test(url)) {
+          // Perplexity format
+          userText = payload?.query_str || payload?.params?.dsl_query || '';
         }
       }
       
@@ -184,7 +227,7 @@
             return bodyText;
           }
         } else {
-          // ChatGPT, Claude, or v0 format
+          // ChatGPT, Claude, v0, Lovable, or Perplexity format
           const payload = JSON.parse(bodyText);
           
           if (url && CHATGPT_ENDPOINT_REGEX.test(url)) {
@@ -204,6 +247,10 @@
           } else if (url && LOVABLE_ENDPOINT_REGEX.test(url)) {
             // Lovable format
             payload.message = enriched;
+          } else if (url && PERPLEXITY_ENDPOINT_REGEX.test(url)) {
+            // Perplexity format
+            payload.query_str = enriched;
+            try { if (payload.params && typeof payload.params === 'object') { payload.params.dsl_query = enriched; } } catch (_) { }
           }
           
           return JSON.stringify(payload);
@@ -249,14 +296,16 @@
           }
         }
         
-        // Handle other platforms (ChatGPT, Claude) with string body
+        // Handle other platforms (ChatGPT, Claude, v0, Lovable, Perplexity) with string body
         if (init && typeof init.body === 'string') {
           const newBody = await enrichPayload(init.body, url);
           if (newBody !== init.body) {
             // Request body enriched
             init = Object.assign({}, init, { body: newBody, method: init.method || 'POST' });
           }
-          return origFetch.call(this, input, init);
+          const resp = await origFetch.call(this, input, init);
+          if (url && PERPLEXITY_ENDPOINT_REGEX.test(url)) { return handleSSEIfApplicable(resp, url); }
+          return resp;
         }
 
         // If input is a Request, clone and rewrite
@@ -270,7 +319,9 @@
               if (newBody !== bodyText) {
                 // Request body enriched
                 const newReq = new Request(input, { body: newBody, method, headers: input.headers });
-                return origFetch.call(this, newReq, init);
+                const resp = await origFetch.call(this, newReq, init);
+                if (url && PERPLEXITY_ENDPOINT_REGEX.test(url)) { return handleSSEIfApplicable(resp, url); }
+                return resp;
               }
             }
           }

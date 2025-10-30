@@ -83,11 +83,16 @@ document.addEventListener("keydown", async (e) => {
     const query = getPromptText(inputEl);
     if (!query) return;
 
-    // For Gemini, let the inpage script handle request interception
-    // Don't interfere with the Enter key for Gemini
-    if (window.location.hostname.includes('gemini.google.com')) {
-      return; // Let the natural flow continue
-    }
+  // For Gemini, let the inpage script handle request interception
+  // Don't interfere with the Enter key for Gemini
+  if (window.location.hostname.includes('gemini.google.com')) {
+    return; // Let the natural flow continue
+  }
+  // For Perplexity, let the inpage script handle request interception
+  // Don't interfere with the Enter key for Perplexity
+  if (window.location.hostname.includes('perplexity.ai')) {
+    return; // Let the natural flow continue
+  }
 
     if (alchemystInjectionInProgress) {
       // Allow the natural submit after we've injected once
@@ -250,6 +255,15 @@ setInterval(() => {
         const dictateWrapper = dictateBtn ? (dictateBtn.closest('span') || dictateBtn) : null;
         parentFlex = (voiceContainer && voiceContainer.parentElement) || (dictateWrapper && dictateWrapper.parentElement);
         target = dictateWrapper || voiceContainer;
+      } else if (windowUrl.includes('perplexity.ai')) {
+        // Perplexity: Only inject next to the sources-switcher-button
+        const sourcesButton = document.querySelector('[data-testid="sources-switcher-button"]');
+        if (sourcesButton) {
+          target = sourcesButton;
+          parentFlex = sourcesButton.parentElement;
+        } else {
+          return;
+        }
       }
 
       if (!parentFlex || !target) return;
@@ -284,6 +298,13 @@ setInterval(() => {
         wrapper.style.background = 'transparent';
         wrapper.style.boxShadow = 'none';
         wrapper.style.marginRight = '8px';
+      }
+      // Perplexity-specific styling
+      if (windowUrl.includes('perplexity.ai')) {
+        wrapper.style.border = 'none';
+        wrapper.style.background = 'transparent';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.marginRight = '4px';
       }
       // Load initial state
       const isEnabled = localStorage.getItem(MEMORY_STATE_KEY) === 'true';
@@ -430,6 +451,27 @@ setInterval(() => {
       } else if (windowUrl.includes('chatgpt.com') || windowUrl.includes('chat.openai.com')) {
         // ChatGPT: Insert before the target control (Dictate button wrapper preferred)
         parent.insertBefore(wrapper, target);
+      } else if (windowUrl.includes('perplexity.ai')) {
+        // Perplexity: Insert as a separate span element before the sources button span
+        try {
+          const sourcesButton = document.querySelector('[data-testid="sources-switcher-button"]');
+          if (sourcesButton && parentFlex) {
+            // Find the outermost span that contains the sources button
+            let sourcesSpan = sourcesButton.closest('span');
+            // Keep going up until we find a span that's a direct child of parentFlex
+            while (sourcesSpan && sourcesSpan.parentElement !== parentFlex) {
+              sourcesSpan = sourcesSpan.parentElement?.closest('span');
+            }
+            // Wrap our button in a span to match DOM structure
+            const spanWrapper = document.createElement('span');
+            spanWrapper.appendChild(wrapper);
+            if (sourcesSpan && sourcesSpan.parentElement === parentFlex) {
+              parentFlex.insertBefore(spanWrapper, sourcesSpan);
+            } else {
+              parentFlex.insertBefore(spanWrapper, parentFlex.firstChild);
+            }
+          }
+        } catch (e) { }
       }
 
       // Click handler – emit a custom event the inpage script could listen to if needed

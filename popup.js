@@ -125,9 +125,9 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   setSavingState(true);
   showStatus('Saving context...', 'info');
 
-  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app') && !tab.url.includes('lovable.dev'))) {
+  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app') && !tab.url.includes('lovable.dev') && !tab.url.includes('perplexity.ai'))) {
     console.warn('[Save Context] Invalid tab URL:', tab?.url);
-    showStatus('Please open a ChatGPT, Claude, Gemini, v0, or Lovable conversation first!', 'error');
+    showStatus('Please open a ChatGPT, Claude, Gemini, v0, Lovable, or Perplexity conversation first!', 'error');
     setSavingState(false);
     console.timeEnd('[Save Context] total');
     return;
@@ -265,7 +265,8 @@ async function scrapeConversation() {
     const geminiMatch = url.match(/\/app\/([a-f0-9]+)/);
     const v0Match = url.match(/\/chat\/([a-zA-Z0-9-_]+)/);
     const lovableMatch = url.match(/lovable\.dev\/projects\/([a-f0-9-]+)/);
-    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match, lovable: !!lovableMatch });
+    const perplexityMatch = url.match(/perplexity\.ai\/search\/([a-zA-Z0-9-_]+)/);
+    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match, lovable: !!lovableMatch, perplexity: !!perplexityMatch });
 
     if (chatgptMatch) {
       memoryId = chatgptMatch[1];
@@ -277,6 +278,8 @@ async function scrapeConversation() {
       memoryId = v0Match[1];
     } else if (lovableMatch) {
       memoryId = lovableMatch[1];
+    } else if (perplexityMatch) {
+      memoryId = perplexityMatch[1];
     } else {
       memoryId = 'unknown-' + Date.now();
     }
@@ -523,6 +526,61 @@ async function scrapeConversation() {
         }
       });
       console.log('[Scraper] Lovable done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    // Perplexity.ai branch: different DOM structure
+    if (window.location.hostname.includes('perplexity.ai')) {
+      console.log('[Scraper] Processing Perplexity conversation');
+      
+      // Look for message containers - Perplexity uses different selectors
+      const messageContainers = document.querySelectorAll('[data-testid*="message"], .group, .flex.flex-col.pb-2');
+      console.log('[Scraper] Found Perplexity message containers:', messageContainers.length);
+
+      messageContainers.forEach((container, idx) => {
+        const msgId = container.getAttribute('data-testid') || container.id || `perplexity-${idx}-${Date.now()}`;
+        
+        // Determine role by looking for user/assistant indicators
+        let role = 'assistant';
+        const isUserMessage = container.querySelector('[data-testid*="user"]') || 
+                             container.classList.contains('items-end') ||
+                             container.querySelector('.justify-end') ||
+                             container.querySelector('[class*="user"]');
+        
+        if (isUserMessage) {
+          role = 'user';
+        }
+
+        // Extract text content from the message
+        const textElements = container.querySelectorAll('p, div[class*="prose"], .prose p, .prose li, .prose code, .prose pre, [class*="prose"] p, [class*="prose"] li, [class*="prose"] code, [class*="prose"] pre, .break-words, .whitespace-pre-wrap');
+        let contentText = '';
+
+        textElements.forEach((el) => {
+          const text = (el.textContent || '').trim();
+          if (text && !text.includes('Share') && !text.includes('Export') && !text.includes('Rewrite')) {
+            if (contentText) contentText += '\n';
+            contentText += text;
+          }
+        });
+
+        // Fallback: get all text content if no specific elements found
+        if (!contentText) {
+          const fallback = (container.textContent || '').trim();
+          if (fallback && !fallback.includes('Share') && !fallback.includes('Export') && !fallback.includes('Rewrite')) {
+            contentText = fallback;
+          }
+        }
+
+        if (contentText && contentText.length > 10) { // Filter out very short content
+          contents.push({
+            content: `[${role}] ${contentText}`,
+            metadata: { source: memoryId, messageId: msgId }
+          });
+        }
+      });
+
+      console.log('[Scraper] Perplexity done', { count: contents.length });
       console.timeEnd('[Scraper] total');
       return { memoryId, contents };
     }

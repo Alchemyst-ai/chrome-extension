@@ -21,6 +21,7 @@
     "https://chatgpt.com/*",
     "https://claude.ai/*",
     "https://gemini.google.com/*",
+    "https://www.perplexity.ai/*",
     "https://lovable.dev/*",
     "https://lovable-api.com/*",
     "https://v0.app/*",
@@ -36,12 +37,15 @@
         "https://chatgpt.com/*",
         "https://claude.ai/*",
         "https://gemini.google.com/*",
+        "https://www.perplexity.ai/*",
         "https://lovable.dev/*",
         "https://v0.app/*"
       ],
       "js": [
         "content.js"
-      ]
+      ],
+      "run_at": "document_start",
+      "all_frames": true
     }
   ],
   "web_accessible_resources": [
@@ -55,6 +59,7 @@
         "https://chatgpt.com/*",
         "https://claude.ai/*",
         "https://gemini.google.com/*",
+        "https://www.perplexity.ai/*",
         "https://lovable.dev/*",
         "https://v0.app/*"
       ]
