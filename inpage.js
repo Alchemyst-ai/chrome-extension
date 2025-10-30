@@ -1,11 +1,12 @@
 (function () {
-  // Match ChatGPT conversation POST, Claude completion endpoint, Gemini StreamGenerate, v0 chat API, Lovable chat API, and Perplexity ask endpoint
+  // Match ChatGPT conversation POST, Claude completion endpoint, Gemini StreamGenerate, v0 chat API, Lovable chat API, Perplexity ask endpoint, and Bolt endpoints
   const CHATGPT_ENDPOINT_REGEX = /\/backend-api\/f\/conversation(?:\?|$)/;
   const CLAUDE_ENDPOINT_REGEX = /\/api\/organizations\/[^\/]+\/chat_conversations\/[^\/]+\/completion$/;
   const GEMINI_ENDPOINT_REGEX = /\/_\/BardChatUi\/data\/assistant\.lamda\.BardFrontendService\/StreamGenerate/;
   const V0_ENDPOINT_REGEX = /\/chat\/api\/chat$/;
   const LOVABLE_ENDPOINT_REGEX = /\/projects\/([a-f0-9-]+)\/chat$/;
   const PERPLEXITY_ENDPOINT_REGEX = /\/rest\/sse\/perplexity_ask$/;
+  const BOLT_ENDPOINT_REGEX = /\/api\/chat\/v2(?:\?|$)/;
   
   function shouldInterceptChatGPT(input, init) {
     try {
@@ -60,6 +61,14 @@
     } catch (_) { return false; }
   }
 
+  function shouldInterceptBolt(input, init) {
+    try {
+      const url = extractUrl(input, init);
+      const should = typeof url === 'string' && BOLT_ENDPOINT_REGEX.test(url);
+      return should;
+    } catch (_) { return false; }
+  }
+
   // Get API key from localStorage
   const apiKey = localStorage.getItem('alchemystApiKey');
 
@@ -75,7 +84,7 @@
   }
 
   function shouldIntercept(input, init) {
-    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init) || shouldInterceptPerplexity(input, init);
+    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init) || shouldInterceptPerplexity(input, init) || shouldInterceptBolt(input, init);
   }
 
   function handleSSEIfApplicable(response, url) {
@@ -138,7 +147,7 @@
           // Failed to parse Gemini payload
         }
       } else {
-        // ChatGPT, Claude, v0, Lovable, or Perplexity format (JSON payload)
+        // ChatGPT, Claude, v0, Lovable, Perplexity, or Bolt format (JSON payload)
         const payload = JSON.parse(bodyText);
         
         if (url && CHATGPT_ENDPOINT_REGEX.test(url)) {
@@ -157,6 +166,11 @@
         } else if (url && PERPLEXITY_ENDPOINT_REGEX.test(url)) {
           // Perplexity format
           userText = payload?.query_str || payload?.params?.dsl_query || '';
+        } else if (url && BOLT_ENDPOINT_REGEX.test(url)) {
+          // Bolt chat format - last user message
+          const msgs = Array.isArray(payload?.messages) ? payload.messages : [];
+          const lastUser = [...msgs].reverse().find(m => m?.role === 'user');
+          userText = lastUser?.content || lastUser?.rawContent || '';
         }
       }
       
@@ -227,7 +241,7 @@
             return bodyText;
           }
         } else {
-          // ChatGPT, Claude, v0, Lovable, or Perplexity format
+          // ChatGPT, Claude, v0, Lovable, Perplexity, or Bolt format
           const payload = JSON.parse(bodyText);
           
           if (url && CHATGPT_ENDPOINT_REGEX.test(url)) {
@@ -251,6 +265,16 @@
             // Perplexity format
             payload.query_str = enriched;
             try { if (payload.params && typeof payload.params === 'object') { payload.params.dsl_query = enriched; } } catch (_) { }
+          } else if (url && BOLT_ENDPOINT_REGEX.test(url)) {
+            // Bolt chat - replace last user content
+            const msgs = Array.isArray(payload?.messages) ? payload.messages : [];
+            for (let i = msgs.length - 1; i >= 0; i--) {
+              if (msgs[i] && msgs[i].role === 'user') {
+                if (typeof msgs[i].content === 'string') msgs[i].content = enriched;
+                if (typeof msgs[i].rawContent === 'string') msgs[i].rawContent = enriched;
+                break;
+              }
+            }
           }
           
           return JSON.stringify(payload);

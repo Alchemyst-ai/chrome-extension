@@ -125,9 +125,9 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   setSavingState(true);
   showStatus('Saving context...', 'info');
 
-  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app') && !tab.url.includes('lovable.dev') && !tab.url.includes('perplexity.ai'))) {
+  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app') && !tab.url.includes('lovable.dev') && !tab.url.includes('perplexity.ai') && !tab.url.includes('bolt.new'))) {
     console.warn('[Save Context] Invalid tab URL:', tab?.url);
-    showStatus('Please open a ChatGPT, Claude, Gemini, v0, Lovable, or Perplexity conversation first!', 'error');
+    showStatus('Please open a ChatGPT, Claude, Gemini, v0, Lovable, Perplexity, or Bolt conversation first!', 'error');
     setSavingState(false);
     console.timeEnd('[Save Context] total');
     return;
@@ -266,7 +266,8 @@ async function scrapeConversation() {
     const v0Match = url.match(/\/chat\/([a-zA-Z0-9-_]+)/);
     const lovableMatch = url.match(/lovable\.dev\/projects\/([a-f0-9-]+)/);
     const perplexityMatch = url.match(/perplexity\.ai\/search\/([a-zA-Z0-9-_]+)/);
-    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match, lovable: !!lovableMatch, perplexity: !!perplexityMatch });
+    const boltMatch = url.match(/bolt\.new\/~\/([a-zA-Z0-9-]+)/);
+    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match, lovable: !!lovableMatch, perplexity: !!perplexityMatch, bolt: !!boltMatch });
 
     if (chatgptMatch) {
       memoryId = chatgptMatch[1];
@@ -280,6 +281,8 @@ async function scrapeConversation() {
       memoryId = lovableMatch[1];
     } else if (perplexityMatch) {
       memoryId = perplexityMatch[1];
+    } else if (boltMatch) {
+      memoryId = boltMatch[1];
     } else {
       memoryId = 'unknown-' + Date.now();
     }
@@ -581,6 +584,49 @@ async function scrapeConversation() {
       });
 
       console.log('[Scraper] Perplexity done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    // Bolt branch
+    if (window.location.hostname.includes('bolt.new')) {
+      console.log('[Scraper] Processing Bolt conversation');
+
+      // Scroll container might virtualize; try to ensure container is present
+      const root = document.querySelector('section[aria-label="Chat"]') || document;
+
+      const msgNodes = root.querySelectorAll('div[data-message-id]');
+      console.log('[Scraper] Found Bolt message nodes:', msgNodes.length);
+
+      msgNodes.forEach((node, idx) => {
+        const msgId = node.getAttribute('data-message-id') || `bolt-${idx}-${Date.now()}`;
+        // role: user bubbles appear right aligned with self-end or background class
+        let role = 'assistant';
+        const isUser = /self-end/.test(node.className) || /bg-bolt-elements-messages-background/.test(node.className);
+        if (isUser) role = 'user';
+
+        // Extract content from Markdown content blocks
+        let contentText = '';
+        const mdContainers = node.querySelectorAll('[class^="_MarkdownContent_"], [class*="_MarkdownContent_"]');
+        if (mdContainers.length) {
+          mdContainers.forEach((mc) => {
+            const parts = mc.querySelectorAll('p, li, code, pre');
+            parts.forEach((el) => {
+              const t = (el.textContent || '').trim();
+              if (t) { if (contentText) contentText += '\n'; contentText += t; }
+            });
+          });
+        }
+        if (!contentText) {
+          const fallback = (node.textContent || '').trim();
+          if (fallback) contentText = fallback;
+        }
+        if (contentText) {
+          contents.push({ content: `[${role}] ${contentText}`, metadata: { source: memoryId, messageId: msgId } });
+        }
+      });
+
+      console.log('[Scraper] Bolt done', { count: contents.length });
       console.timeEnd('[Scraper] total');
       return { memoryId, contents };
     }

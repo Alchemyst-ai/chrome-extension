@@ -255,6 +255,14 @@ setInterval(() => {
         const dictateWrapper = dictateBtn ? (dictateBtn.closest('span') || dictateBtn) : null;
         parentFlex = (voiceContainer && voiceContainer.parentElement) || (dictateWrapper && dictateWrapper.parentElement);
         target = dictateWrapper || voiceContainer;
+      } else if (windowUrl.includes('bolt.new')) {
+        // Bolt: Insert in the composer toolbar row
+        const row = document.querySelector('.flex.justify-between.text-sm') || document.querySelector('[class*="justify-between"][class*="text-sm"]');
+        if (!row) return;
+        // Prefer the left group within the row
+        const leftGroup = row.querySelector('.flex.gap-1.items-center.w-full') || row.querySelector('.flex.gap-1');
+        parentFlex = leftGroup || row;
+        target = (leftGroup && leftGroup.firstElementChild) || row.firstElementChild;
       } else if (windowUrl.includes('perplexity.ai')) {
         // Perplexity: Only inject next to the sources-switcher-button
         const sourcesButton = document.querySelector('[data-testid="sources-switcher-button"]');
@@ -298,6 +306,13 @@ setInterval(() => {
         wrapper.style.background = 'transparent';
         wrapper.style.boxShadow = 'none';
         wrapper.style.marginRight = '8px';
+      }
+      // Bolt-specific styling
+      if (windowUrl.includes('bolt.new')) {
+        wrapper.style.border = 'none';
+        wrapper.style.background = 'transparent';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.marginRight = '6px';
       }
       // Perplexity-specific styling
       if (windowUrl.includes('perplexity.ai')) {
@@ -451,6 +466,15 @@ setInterval(() => {
       } else if (windowUrl.includes('chatgpt.com') || windowUrl.includes('chat.openai.com')) {
         // ChatGPT: Insert before the target control (Dictate button wrapper preferred)
         parent.insertBefore(wrapper, target);
+      } else if (windowUrl.includes('bolt.new')) {
+        // Bolt: Insert at beginning of left group
+        try {
+          if (target && target !== parentFlex) {
+            parentFlex.insertBefore(wrapper, target);
+          } else {
+            parentFlex.insertBefore(wrapper, parentFlex.firstChild);
+          }
+        } catch (e) { }
       } else if (windowUrl.includes('perplexity.ai')) {
         // Perplexity: Insert as a separate span element before the sources button span
         try {

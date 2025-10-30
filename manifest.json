@@ -25,6 +25,7 @@
     "https://lovable.dev/*",
     "https://lovable-api.com/*",
     "https://v0.app/*",
+    "https://bolt.new/*",
     "https://platform-backend.getalchemystai.com/*"
   ],
   "background": {
@@ -39,7 +40,8 @@
         "https://gemini.google.com/*",
         "https://www.perplexity.ai/*",
         "https://lovable.dev/*",
-        "https://v0.app/*"
+        "https://v0.app/*",
+        "https://bolt.new/*"
       ],
       "js": [
         "content.js"
@@ -61,7 +63,8 @@
         "https://gemini.google.com/*",
         "https://www.perplexity.ai/*",
         "https://lovable.dev/*",
-        "https://v0.app/*"
+        "https://v0.app/*",
+        "https://bolt.new/*"
       ]
     }
   ],
