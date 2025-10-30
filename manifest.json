@@ -21,6 +21,7 @@
     "https://chatgpt.com/*",
     "https://claude.ai/*",
     "https://gemini.google.com/*",
+    "https://v0.app/*",
     "https://platform-backend.getalchemystai.com/*"
   ],
   "background": {
@@ -32,7 +33,8 @@
         "https://chat.openai.com/*",
         "https://chatgpt.com/*",
         "https://claude.ai/*",
-        "https://gemini.google.com/*"
+        "https://gemini.google.com/*",
+        "https://v0.app/*"
       ],
       "js": [
         "content.js"
@@ -49,7 +51,8 @@
         "https://chat.openai.com/*",
         "https://chatgpt.com/*",
         "https://claude.ai/*",
-        "https://gemini.google.com/*"
+        "https://gemini.google.com/*",
+        "https://v0.app/*"
       ]
     }
   ],
