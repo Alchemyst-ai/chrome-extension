@@ -125,9 +125,9 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   setSavingState(true);
   showStatus('Saving context...', 'info');
 
-  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app'))) {
+  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app') && !tab.url.includes('lovable.dev') && !tab.url.includes('perplexity.ai') && !tab.url.includes('bolt.new'))) {
     console.warn('[Save Context] Invalid tab URL:', tab?.url);
-    showStatus('Please open a ChatGPT, Claude, Gemini, or v0 conversation first!', 'error');
+    showStatus('Please open a ChatGPT, Claude, Gemini, v0, Lovable, Perplexity, or Bolt conversation first!', 'error');
     setSavingState(false);
     console.timeEnd('[Save Context] total');
     return;
@@ -252,7 +252,7 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   }
 });
 
-function scrapeConversation() {
+async function scrapeConversation() {
   try {
     console.log('[Scraper] Starting');
     console.time('[Scraper] total');
@@ -264,7 +264,10 @@ function scrapeConversation() {
     const claudeMatch = url.match(/\/chat\/([a-f0-9-]+)/);
     const geminiMatch = url.match(/\/app\/([a-f0-9]+)/);
     const v0Match = url.match(/\/chat\/([a-zA-Z0-9-_]+)/);
-    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match });
+    const lovableMatch = url.match(/lovable\.dev\/projects\/([a-f0-9-]+)/);
+    const perplexityMatch = url.match(/perplexity\.ai\/search\/([a-zA-Z0-9-_]+)/);
+    const boltMatch = url.match(/bolt\.new\/~\/([a-zA-Z0-9-]+)/);
+    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match, lovable: !!lovableMatch, perplexity: !!perplexityMatch, bolt: !!boltMatch });
 
     if (chatgptMatch) {
       memoryId = chatgptMatch[1];
@@ -274,6 +277,12 @@ function scrapeConversation() {
       memoryId = geminiMatch[1];
     } else if (v0Match) {
       memoryId = v0Match[1];
+    } else if (lovableMatch) {
+      memoryId = lovableMatch[1];
+    } else if (perplexityMatch) {
+      memoryId = perplexityMatch[1];
+    } else if (boltMatch) {
+      memoryId = boltMatch[1];
     } else {
       memoryId = 'unknown-' + Date.now();
     }
@@ -434,6 +443,190 @@ function scrapeConversation() {
       });
       
       console.log('[Scraper] v0 done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    // Lovable branch
+    if (window.location.hostname.includes('lovable.dev')) {
+      console.log('[Scraper] Using Lovable selectors');
+      // Iteratively scroll the virtualized list to load all messages
+      const scroller = document.querySelector('.h-full.w-full.overflow-y-auto') || document.querySelector('[class*="overflow-y-auto"]');
+      let lastCount = -1;
+      for (let pass = 0; pass < 10; pass++) {
+        // Expand any truncated messages each pass
+        try {
+          document.querySelectorAll('button').forEach(btn => {
+            const txt = (btn.textContent || '').trim().toLowerCase();
+            if (txt === 'show more' || txt === 'show full message' || txt === 'show full') {
+              btn.click();
+            }
+          });
+        } catch (_) { }
+
+        const current = document.querySelectorAll('[data-message-id]').length;
+        if (current === lastCount) break;
+        lastCount = current;
+
+        if (scroller) {
+          try {
+            // Scroll through the list in steps to trigger virtualization rendering
+            const steps = 6;
+            for (let i = 0; i <= steps; i++) {
+              scroller.scrollTop = Math.floor((scroller.scrollHeight * i) / steps);
+              await new Promise(r => setTimeout(r, 120));
+            }
+          } catch (_) { }
+        } else {
+          // Fallback: window scroll
+          try {
+            const steps = 6;
+            for (let i = 0; i <= steps; i++) {
+              window.scrollTo(0, Math.floor((document.body.scrollHeight * i) / steps));
+              await new Promise(r => setTimeout(r, 120));
+            }
+          } catch (_) { }
+        }
+      }
+
+      // Collect messages by id and also raw bubbles (fallback)
+      const idItems = Array.from(document.querySelectorAll('[data-message-id]'));
+      const bubbles = Array.from(document.querySelectorAll('.overflow-wrap-anywhere'));
+      const items = idItems.length ? idItems : bubbles;
+      console.log('[Scraper] Found Lovable nodes:', { withIds: idItems.length, bubbles: bubbles.length });
+
+      items.forEach((item, idx) => {
+        const msgId = item.getAttribute('data-message-id') || item.id || `lovable-${idx}-${Date.now()}`;
+        // Determine role by id prefix or alignment
+        let role = 'assistant';
+        if (msgId.startsWith('umsg_')) role = 'user';
+        else if (msgId.startsWith('aimsg_')) role = 'assistant';
+        else {
+          // If we only have a bubble, inspect its wrapper row alignment
+          const row = item.closest('.flex.w-full.items-start') || item.parentElement;
+          const rightAligned = (row && /justify-end/.test(row.className)) || item.querySelector?.('.items-end, .justify-end');
+          role = rightAligned ? 'user' : 'assistant';
+        }
+
+        // Prefer the bubble content container to avoid toolbars
+        const bubble = item.matches?.('.overflow-wrap-anywhere') ? item : (item.querySelector?.('.overflow-wrap-anywhere') || item);
+        // Extract text from prose blocks within each message bubble
+        const proseBlocks = bubble.querySelectorAll('.prose p, .prose li, .prose code, .prose pre, [class*="prose"] p, [class*="prose"] li, [class*="prose"] code, [class*="prose"] pre');
+        let contentText = '';
+        proseBlocks.forEach((el) => {
+          const t = (el.textContent || '').trim();
+          if (t) { if (contentText) contentText += '\n'; contentText += t; }
+        });
+        if (!contentText) {
+          const fallback = (bubble.textContent || '').trim();
+          if (fallback) contentText = fallback;
+        }
+        if (contentText) {
+          contents.push({
+            content: `[${role}] ${contentText}`,
+            metadata: { source: memoryId, messageId: msgId }
+          });
+        }
+      });
+      console.log('[Scraper] Lovable done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    // Perplexity.ai branch: different DOM structure
+    if (window.location.hostname.includes('perplexity.ai')) {
+      console.log('[Scraper] Processing Perplexity conversation');
+      
+      // Look for message containers - Perplexity uses different selectors
+      const messageContainers = document.querySelectorAll('[data-testid*="message"], .group, .flex.flex-col.pb-2');
+      console.log('[Scraper] Found Perplexity message containers:', messageContainers.length);
+
+      messageContainers.forEach((container, idx) => {
+        const msgId = container.getAttribute('data-testid') || container.id || `perplexity-${idx}-${Date.now()}`;
+        
+        // Determine role by looking for user/assistant indicators
+        let role = 'assistant';
+        const isUserMessage = container.querySelector('[data-testid*="user"]') || 
+                             container.classList.contains('items-end') ||
+                             container.querySelector('.justify-end') ||
+                             container.querySelector('[class*="user"]');
+        
+        if (isUserMessage) {
+          role = 'user';
+        }
+
+        // Extract text content from the message
+        const textElements = container.querySelectorAll('p, div[class*="prose"], .prose p, .prose li, .prose code, .prose pre, [class*="prose"] p, [class*="prose"] li, [class*="prose"] code, [class*="prose"] pre, .break-words, .whitespace-pre-wrap');
+        let contentText = '';
+
+        textElements.forEach((el) => {
+          const text = (el.textContent || '').trim();
+          if (text && !text.includes('Share') && !text.includes('Export') && !text.includes('Rewrite')) {
+            if (contentText) contentText += '\n';
+            contentText += text;
+          }
+        });
+
+        // Fallback: get all text content if no specific elements found
+        if (!contentText) {
+          const fallback = (container.textContent || '').trim();
+          if (fallback && !fallback.includes('Share') && !fallback.includes('Export') && !fallback.includes('Rewrite')) {
+            contentText = fallback;
+          }
+        }
+
+        if (contentText && contentText.length > 10) { // Filter out very short content
+          contents.push({
+            content: `[${role}] ${contentText}`,
+            metadata: { source: memoryId, messageId: msgId }
+          });
+        }
+      });
+
+      console.log('[Scraper] Perplexity done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    // Bolt branch
+    if (window.location.hostname.includes('bolt.new')) {
+      console.log('[Scraper] Processing Bolt conversation');
+
+      // Scroll container might virtualize; try to ensure container is present
+      const root = document.querySelector('section[aria-label="Chat"]') || document;
+
+      const msgNodes = root.querySelectorAll('div[data-message-id]');
+      console.log('[Scraper] Found Bolt message nodes:', msgNodes.length);
+
+      msgNodes.forEach((node, idx) => {
+        const msgId = node.getAttribute('data-message-id') || `bolt-${idx}-${Date.now()}`;
+        // role: user bubbles appear right aligned with self-end or background class
+        let role = 'assistant';
+        const isUser = /self-end/.test(node.className) || /bg-bolt-elements-messages-background/.test(node.className);
+        if (isUser) role = 'user';
+
+        // Extract content from Markdown content blocks
+        let contentText = '';
+        const mdContainers = node.querySelectorAll('[class^="_MarkdownContent_"], [class*="_MarkdownContent_"]');
+        if (mdContainers.length) {
+          mdContainers.forEach((mc) => {
+            const parts = mc.querySelectorAll('p, li, code, pre');
+            parts.forEach((el) => {
+              const t = (el.textContent || '').trim();
+              if (t) { if (contentText) contentText += '\n'; contentText += t; }
+            });
+          });
+        }
+        if (!contentText) {
+          const fallback = (node.textContent || '').trim();
+          if (fallback) contentText = fallback;
+        }
+        if (contentText) {
+          contents.push({ content: `[${role}] ${contentText}`, metadata: { source: memoryId, messageId: msgId } });
+        }
+      });
+
+      console.log('[Scraper] Bolt done', { count: contents.length });
       console.timeEnd('[Scraper] total');
       return { memoryId, contents };
     }
