@@ -476,24 +476,23 @@ setInterval(() => {
           }
         } catch (e) { }
       } else if (windowUrl.includes('perplexity.ai')) {
-        // Perplexity: Insert as a separate span element before the sources button span
+        // Perplexity: insert a DIV as a sibling to the <span> that contains the sources button
         try {
           const sourcesButton = document.querySelector('[data-testid="sources-switcher-button"]');
           if (sourcesButton && parentFlex) {
-            // Find the outermost span that contains the sources button
-            let sourcesSpan = sourcesButton.closest('span');
-            // Keep going up until we find a span that's a direct child of parentFlex
-            while (sourcesSpan && sourcesSpan.parentElement !== parentFlex) {
-              sourcesSpan = sourcesSpan.parentElement?.closest('span');
-            }
-            // Wrap our button in a span to match DOM structure
-            const spanWrapper = document.createElement('span');
-            spanWrapper.appendChild(wrapper);
-            if (sourcesSpan && sourcesSpan.parentElement === parentFlex) {
-              parentFlex.insertBefore(spanWrapper, sourcesSpan);
-            } else {
-              parentFlex.insertBefore(spanWrapper, parentFlex.firstChild);
-            }
+            const spanContainer = sourcesButton.closest('span') || parentFlex;
+            const rowContainer = spanContainer && spanContainer.parentElement ? spanContainer.parentElement : parentFlex;
+            if (!rowContainer) return;
+
+            const divContainer = document.createElement('div');
+            divContainer.style.display = 'inline-flex';
+            divContainer.style.alignItems = 'center';
+            divContainer.style.justifyContent = 'center';
+            divContainer.style.verticalAlign = 'middle';
+            divContainer.appendChild(wrapper);
+
+            // Insert our div as a sibling before the span containing the sources button
+            rowContainer.insertBefore(divContainer, spanContainer);
           }
         } catch (e) { }
       }
