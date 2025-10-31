@@ -22,7 +22,11 @@
     "https://claude.ai/*",
     "https://gemini.google.com/*",
     "https://v0.app/*",
-    "https://platform-backend.getalchemystai.com/*"
+    "https://platform-backend.getalchemystai.com/*",
+    "https://perplexity.ai/*",
+    "https://bolt.new/*",
+    "https://lovable.dev/*",
+    "https://i10x.ai/*"
   ],
   "background": {
     "service_worker": "background.js"
