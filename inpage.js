@@ -7,6 +7,7 @@
   const LOVABLE_ENDPOINT_REGEX = /\/projects\/([a-f0-9-]+)\/chat$/;
   const PERPLEXITY_ENDPOINT_REGEX = /\/rest\/sse\/perplexity_ask$/;
   const BOLT_ENDPOINT_REGEX = /\/api\/chat\/v2(?:\?|$)/;
+  const DEEPSEEK_ENDPOINT_REGEX = /\/api\/v0\/chat\/completion$/;
   
   function shouldInterceptChatGPT(input, init) {
     try {
@@ -69,6 +70,14 @@
     } catch (_) { return false; }
   }
 
+  function shouldInterceptDeepSeek(input, init) {
+    try {
+      const url = extractUrl(input, init);
+      const should = typeof url === 'string' && DEEPSEEK_ENDPOINT_REGEX.test(url);
+      return should;
+    } catch (_) { return false; }
+  }
+
   // Get API key from localStorage
   const apiKey = localStorage.getItem('alchemystApiKey');
 
@@ -84,7 +93,7 @@
   }
 
   function shouldIntercept(input, init) {
-    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init) || shouldInterceptPerplexity(input, init) || shouldInterceptBolt(input, init);
+    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init) || shouldInterceptPerplexity(input, init) || shouldInterceptBolt(input, init) || shouldInterceptDeepSeek(input, init);
   }
 
   function handleSSEIfApplicable(response, url) {
@@ -171,6 +180,9 @@
           const msgs = Array.isArray(payload?.messages) ? payload.messages : [];
           const lastUser = [...msgs].reverse().find(m => m?.role === 'user');
           userText = lastUser?.content || lastUser?.rawContent || '';
+        } else if (url && DEEPSEEK_ENDPOINT_REGEX.test(url)) {
+          // DeepSeek format
+          userText = payload?.prompt || '';
         }
       }
       
@@ -275,6 +287,9 @@
                 break;
               }
             }
+          } else if (url && DEEPSEEK_ENDPOINT_REGEX.test(url)) {
+            // DeepSeek format
+            payload.prompt = enriched;
           }
           
           return JSON.stringify(payload);
@@ -328,7 +343,7 @@
             init = Object.assign({}, init, { body: newBody, method: init.method || 'POST' });
           }
           const resp = await origFetch.call(this, input, init);
-          if (url && PERPLEXITY_ENDPOINT_REGEX.test(url)) { return handleSSEIfApplicable(resp, url); }
+          if (url && (PERPLEXITY_ENDPOINT_REGEX.test(url) || DEEPSEEK_ENDPOINT_REGEX.test(url))) { return handleSSEIfApplicable(resp, url); }
           return resp;
         }
 
@@ -344,7 +359,7 @@
                 // Request body enriched
                 const newReq = new Request(input, { body: newBody, method, headers: input.headers });
                 const resp = await origFetch.call(this, newReq, init);
-                if (url && PERPLEXITY_ENDPOINT_REGEX.test(url)) { return handleSSEIfApplicable(resp, url); }
+                if (url && (PERPLEXITY_ENDPOINT_REGEX.test(url) || DEEPSEEK_ENDPOINT_REGEX.test(url))) { return handleSSEIfApplicable(resp, url); }
                 return resp;
               }
             }

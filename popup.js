@@ -125,9 +125,9 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   setSavingState(true);
   showStatus('Saving context...', 'info');
 
-  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app') && !tab.url.includes('lovable.dev') && !tab.url.includes('perplexity.ai') && !tab.url.includes('bolt.new') && !tab.url.includes('manus.im'))) {
+  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app') && !tab.url.includes('lovable.dev') && !tab.url.includes('perplexity.ai') && !tab.url.includes('bolt.new') && !tab.url.includes('manus.im') && !tab.url.includes('chat.deepseek.com'))) {
     console.warn('[Save Context] Invalid tab URL:', tab?.url);
-    showStatus('Please open a ChatGPT, Claude, Gemini, v0, Lovable, Perplexity, Bolt, or Manus conversation first!', 'error');
+    showStatus('Please open a ChatGPT, Claude, Gemini, v0, Lovable, Perplexity, Bolt, Manus, or DeepSeek conversation first!', 'error');
     setSavingState(false);
     console.timeEnd('[Save Context] total');
     return;
@@ -268,7 +268,8 @@ async function scrapeConversation() {
     const perplexityMatch = url.match(/perplexity\.ai\/search\/([a-zA-Z0-9-_]+)/);
     const boltMatch = url.match(/bolt\.new\/~\/([a-zA-Z0-9-]+)/);
     const manusMatch = url.match(/manus\.im\/app\/([a-zA-Z0-9]+)/);
-    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match, lovable: !!lovableMatch, perplexity: !!perplexityMatch, bolt: !!boltMatch, manus: !!manusMatch });
+    const deepseekMatch = url.match(/chat\.deepseek\.com\/a\/chat\/s\/([a-f0-9-]+)/);
+    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match, lovable: !!lovableMatch, perplexity: !!perplexityMatch, bolt: !!boltMatch, manus: !!manusMatch, deepseek: !!deepseekMatch });
 
     // Check more specific patterns first (with domain) before generic /app/ patterns
     if (chatgptMatch) {
@@ -277,6 +278,8 @@ async function scrapeConversation() {
       memoryId = claudeMatch[1];
     } else if (manusMatch) {
       memoryId = manusMatch[1];
+    } else if (deepseekMatch) {
+      memoryId = deepseekMatch[1];
     } else if (lovableMatch) {
       memoryId = lovableMatch[1];
     } else if (perplexityMatch) {
@@ -700,6 +703,96 @@ async function scrapeConversation() {
       });
 
       console.log('[Scraper] Manus done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    // DeepSeek branch
+    if (window.location.hostname.includes('chat.deepseek.com')) {
+      console.log('[Scraper] Processing DeepSeek conversation');
+
+      // User messages: containers with data-um-id attribute
+      const userMessages = document.querySelectorAll('[data-um-id]');
+      console.log('[Scraper] Found DeepSeek user messages:', userMessages.length);
+
+      userMessages.forEach((container, idx) => {
+        const msgId = container.getAttribute('data-um-id') || `deepseek-user-${idx}-${Date.now()}`;
+        
+        // User message content is in .fbb737a4
+        const contentDiv = container.querySelector('.fbb737a4');
+        let contentText = '';
+        
+        if (contentDiv) {
+          contentText = (contentDiv.textContent || '').trim();
+        }
+        
+        // Fallback: get text from message bubble
+        if (!contentText) {
+          const messageBubble = container.querySelector('.ds-message');
+          if (messageBubble) {
+            contentText = (messageBubble.textContent || '').trim();
+          }
+        }
+
+        if (contentText && contentText.length > 0) {
+          contents.push({
+            content: `[user] ${contentText}`,
+            metadata: { source: memoryId, messageId: msgId }
+          });
+          if (idx < 2) console.log('[Scraper] DeepSeek user added', { length: contentText.length });
+        }
+      });
+
+      // Assistant messages: containers with _4f9bf79 class
+      const assistantMessages = document.querySelectorAll('._4f9bf79');
+      console.log('[Scraper] Found DeepSeek assistant messages:', assistantMessages.length);
+
+      assistantMessages.forEach((container, idx) => {
+        const msgId = container.id || `deepseek-assistant-${idx}-${Date.now()}`;
+        
+        // Assistant message content is in .ds-markdown
+        const markdownDiv = container.querySelector('.ds-markdown');
+        let contentText = '';
+        
+        if (markdownDiv) {
+          // Extract text from paragraphs
+          const paragraphs = markdownDiv.querySelectorAll('p.ds-markdown-paragraph, p');
+          paragraphs.forEach((p) => {
+            const text = (p.textContent || '').trim();
+            if (text) {
+              if (contentText) contentText += '\n';
+              contentText += text;
+            }
+          });
+          
+          // Fallback: get all text from markdown div
+          if (!contentText) {
+            contentText = (markdownDiv.textContent || '').trim();
+          }
+        }
+        
+        // Fallback: get text from message bubble
+        if (!contentText) {
+          const messageBubble = container.querySelector('.ds-message');
+          if (messageBubble) {
+            contentText = (messageBubble.textContent || '').trim();
+          }
+        }
+
+        // Filter out UI button text
+        if (contentText && contentText.length > 0 && 
+            !contentText.includes('Copy') &&
+            !contentText.includes('Regenerate') &&
+            !contentText.includes('Thumbs')) {
+          contents.push({
+            content: `[assistant] ${contentText}`,
+            metadata: { source: memoryId, messageId: msgId }
+          });
+          if (idx < 2) console.log('[Scraper] DeepSeek assistant added', { length: contentText.length });
+        }
+      });
+
+      console.log('[Scraper] DeepSeek done', { count: contents.length });
       console.timeEnd('[Scraper] total');
       return { memoryId, contents };
     }
