@@ -272,6 +272,17 @@ setInterval(() => {
         } else {
           return;
         }
+      } else if (windowUrl.includes('manus.im')) {
+        // Manus: Insert in the left button section (flex gap-2 items-center flex-shrink-0)
+        // Try multiple selectors to handle potential class name variations
+        const leftButtonSection = document.querySelector('.flex.gap-2.items-center.flex-shrink-0') ||
+                                   document.querySelector('[class*="flex"][class*="gap-2"][class*="items-center"][class*="flex-shrink-0"]');
+        if (leftButtonSection) {
+          parentFlex = leftButtonSection;
+          target = leftButtonSection.lastElementChild; // Insert after the last button (cable icon)
+        } else {
+          return;
+        }
       }
 
       if (!parentFlex || !target) return;
@@ -320,6 +331,13 @@ setInterval(() => {
         wrapper.style.background = 'transparent';
         wrapper.style.boxShadow = 'none';
         wrapper.style.marginRight = '4px';
+      }
+      // Manus-specific styling
+      if (windowUrl.includes('manus.im')) {
+        wrapper.style.border = 'none';
+        wrapper.style.background = 'transparent';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.marginRight = '0';
       }
       // Load initial state
       const isEnabled = localStorage.getItem(MEMORY_STATE_KEY) === 'true';
@@ -493,6 +511,13 @@ setInterval(() => {
 
             // Insert our div as a sibling before the span containing the sources button
             rowContainer.insertBefore(divContainer, spanContainer);
+          }
+        } catch (e) { }
+      } else if (windowUrl.includes('manus.im')) {
+        // Manus: Append to the left button section
+        try {
+          if (parentFlex) {
+            parentFlex.appendChild(wrapper);
           }
         } catch (e) { }
       }
@@ -695,4 +720,5 @@ const pendingRequests = new Map();
     }
   });
 })();
+
 
