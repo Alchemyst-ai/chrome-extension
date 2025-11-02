@@ -83,11 +83,21 @@ document.addEventListener("keydown", async (e) => {
     const query = getPromptText(inputEl);
     if (!query) return;
 
-    // For Gemini, let the inpage script handle request interception
-    // Don't interfere with the Enter key for Gemini
-    if (window.location.hostname.includes('gemini.google.com')) {
-      return; // Let the natural flow continue
-    }
+  // For Gemini, let the inpage script handle request interception
+  // Don't interfere with the Enter key for Gemini
+  if (window.location.hostname.includes('gemini.google.com')) {
+    return; // Let the natural flow continue
+  }
+  // For Perplexity, let the inpage script handle request interception
+  // Don't interfere with the Enter key for Perplexity
+  if (window.location.hostname.includes('perplexity.ai')) {
+    return; // Let the natural flow continue
+  }
+  // For DeepSeek, let the inpage script handle request interception
+  // Don't interfere with the Enter key for DeepSeek
+  if (window.location.hostname.includes('chat.deepseek.com')) {
+    return; // Let the natural flow continue
+  }
 
     if (alchemystInjectionInProgress) {
       // Allow the natural submit after we've injected once
@@ -223,6 +233,26 @@ setInterval(() => {
             return;
           }
         }
+      } else if (windowUrl.includes('lovable.dev')) {
+        // Lovable: Insert into the form toolbar on the right (ml-auto flex items-center gap-1)
+        const form = document.querySelector('form#chat-input');
+        let toolbar = null;
+        if (form) {
+          toolbar = form.querySelector('.ml-auto.flex.items-center.gap-1') || form.querySelector('.ml-auto');
+        }
+        if (toolbar) {
+          parentFlex = toolbar;
+          target = toolbar.firstElementChild || toolbar;
+        } else {
+          // Fallback: try send button parent
+          const sendBtn = document.getElementById('chatinput-send-message-button') || form?.querySelector('#chatinput-send-message-button');
+          if (sendBtn && sendBtn.parentElement) {
+            parentFlex = sendBtn.parentElement;
+            target = sendBtn;
+          } else {
+            return;
+          }
+        }
       } else if (windowUrl.includes('chatgpt.com') || windowUrl.includes('chat.openai.com')) {
         // ChatGPT: Prefer to insert before the Dictate button; fallback to the voice container
         const dictateBtn = document.querySelector(DICTATE_BUTTON_SELECTOR);
@@ -230,6 +260,44 @@ setInterval(() => {
         const dictateWrapper = dictateBtn ? (dictateBtn.closest('span') || dictateBtn) : null;
         parentFlex = (voiceContainer && voiceContainer.parentElement) || (dictateWrapper && dictateWrapper.parentElement);
         target = dictateWrapper || voiceContainer;
+      } else if (windowUrl.includes('bolt.new')) {
+        // Bolt: Insert in the composer toolbar row
+        const row = document.querySelector('.flex.justify-between.text-sm') || document.querySelector('[class*="justify-between"][class*="text-sm"]');
+        if (!row) return;
+        // Prefer the left group within the row
+        const leftGroup = row.querySelector('.flex.gap-1.items-center.w-full') || row.querySelector('.flex.gap-1');
+        parentFlex = leftGroup || row;
+        target = (leftGroup && leftGroup.firstElementChild) || row.firstElementChild;
+      } else if (windowUrl.includes('perplexity.ai')) {
+        // Perplexity: Only inject next to the sources-switcher-button
+        const sourcesButton = document.querySelector('[data-testid="sources-switcher-button"]');
+        if (sourcesButton) {
+          target = sourcesButton;
+          parentFlex = sourcesButton.parentElement;
+        } else {
+          return;
+        }
+      } else if (windowUrl.includes('manus.im')) {
+        // Manus: Insert in the left button section (flex gap-2 items-center flex-shrink-0)
+        // Try multiple selectors to handle potential class name variations
+        const leftButtonSection = document.querySelector('.flex.gap-2.items-center.flex-shrink-0') ||
+                                   document.querySelector('[class*="flex"][class*="gap-2"][class*="items-center"][class*="flex-shrink-0"]');
+        if (leftButtonSection) {
+          parentFlex = leftButtonSection;
+          target = leftButtonSection.lastElementChild; // Insert after the last button (cable icon)
+        } else {
+          return;
+        }
+      } else if (windowUrl.includes('chat.deepseek.com')) {
+        // DeepSeek: Insert in the button container (.ec4f5d61) alongside DeepThink and Search buttons
+        const buttonContainer = document.querySelector('.ec4f5d61') ||
+                                document.querySelector('[class*="ec4f5d61"]');
+        if (buttonContainer) {
+          parentFlex = buttonContainer;
+          target = buttonContainer.firstElementChild; // Insert before first button (DeepThink)
+        } else {
+          return;
+        }
       }
 
       if (!parentFlex || !target) return;
@@ -260,6 +328,34 @@ setInterval(() => {
       }
       // v0-specific styling to match the platform design
       if (windowUrl.includes('v0.app')) {
+        wrapper.style.border = 'none';
+        wrapper.style.background = 'transparent';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.marginRight = '8px';
+      }
+      // Bolt-specific styling
+      if (windowUrl.includes('bolt.new')) {
+        wrapper.style.border = 'none';
+        wrapper.style.background = 'transparent';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.marginRight = '6px';
+      }
+      // Perplexity-specific styling
+      if (windowUrl.includes('perplexity.ai')) {
+        wrapper.style.border = 'none';
+        wrapper.style.background = 'transparent';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.marginRight = '4px';
+      }
+      // Manus-specific styling
+      if (windowUrl.includes('manus.im')) {
+        wrapper.style.border = 'none';
+        wrapper.style.background = 'transparent';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.marginRight = '0';
+      }
+      // DeepSeek-specific styling
+      if (windowUrl.includes('chat.deepseek.com')) {
         wrapper.style.border = 'none';
         wrapper.style.background = 'transparent';
         wrapper.style.boxShadow = 'none';
@@ -396,9 +492,65 @@ setInterval(() => {
         } catch (e) {
           // Silent fail
         }
+      } else if (windowUrl.includes('lovable.dev')) {
+        // Lovable: Insert in the right toolbar
+        try {
+          if (target && target !== parentFlex) {
+            parentFlex.insertBefore(wrapper, target);
+          } else {
+            parentFlex.insertBefore(wrapper, parentFlex.firstChild);
+          }
+        } catch (e) {
+          // Silent fail
+        }
       } else if (windowUrl.includes('chatgpt.com') || windowUrl.includes('chat.openai.com')) {
         // ChatGPT: Insert before the target control (Dictate button wrapper preferred)
         parent.insertBefore(wrapper, target);
+      } else if (windowUrl.includes('bolt.new')) {
+        // Bolt: Insert at beginning of left group
+        try {
+          if (target && target !== parentFlex) {
+            parentFlex.insertBefore(wrapper, target);
+          } else {
+            parentFlex.insertBefore(wrapper, parentFlex.firstChild);
+          }
+        } catch (e) { }
+      } else if (windowUrl.includes('perplexity.ai')) {
+        // Perplexity: insert a DIV as a sibling to the <span> that contains the sources button
+        try {
+          const sourcesButton = document.querySelector('[data-testid="sources-switcher-button"]');
+          if (sourcesButton && parentFlex) {
+            const spanContainer = sourcesButton.closest('span') || parentFlex;
+            const rowContainer = spanContainer && spanContainer.parentElement ? spanContainer.parentElement : parentFlex;
+            if (!rowContainer) return;
+
+            const divContainer = document.createElement('div');
+            divContainer.style.display = 'inline-flex';
+            divContainer.style.alignItems = 'center';
+            divContainer.style.justifyContent = 'center';
+            divContainer.style.verticalAlign = 'middle';
+            divContainer.appendChild(wrapper);
+
+            // Insert our div as a sibling before the span containing the sources button
+            rowContainer.insertBefore(divContainer, spanContainer);
+          }
+        } catch (e) { }
+      } else if (windowUrl.includes('manus.im')) {
+        // Manus: Append to the left button section
+        try {
+          if (parentFlex) {
+            parentFlex.appendChild(wrapper);
+          }
+        } catch (e) { }
+      } else if (windowUrl.includes('chat.deepseek.com')) {
+        // DeepSeek: Insert in button container before first button
+        try {
+          if (target && target !== parentFlex) {
+            parentFlex.insertBefore(wrapper, target);
+          } else {
+            parentFlex.insertBefore(wrapper, parentFlex.firstChild);
+          }
+        } catch (e) { }
       }
 
       // Click handler – emit a custom event the inpage script could listen to if needed
@@ -599,4 +751,5 @@ const pendingRequests = new Map();
     }
   });
 })();
+
 

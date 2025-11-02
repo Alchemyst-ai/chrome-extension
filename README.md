@@ -1,11 +1,12 @@
 # Alchemyst Context Layer Chrome Extension
 
-A Chrome extension that enriches ChatGPT, Claude, Gemini, and v0 prompts with relevant context from your knowledge base.
+A Chrome extension that enriches ChatGPT, Claude, Gemini, Perplexity, v0, Lovable, and Bolt prompts with relevant context from your knowledge base.
 
 ## Features
 
-- Seamlessly integrates with ChatGPT, Claude.ai, Gemini, and v0 interfaces
+- Seamlessly integrates with ChatGPT, Claude.ai, Gemini, Perplexity, v0, Lovable, and Bolt interfaces
 - Injects relevant context from your Alchemyst knowledge base into prompts
+- Save conversation history via the popup for supported platforms
 - Toggle memory/context injection with a single click
 - Simple API key configuration
 
@@ -20,9 +21,10 @@ A Chrome extension that enriches ChatGPT, Claude, Gemini, and v0 prompts with re
 
 1. Click the extension icon in Chrome
 2. Enter your Alchemyst API key and click "Save"
-3. Navigate to ChatGPT, Claude.ai, Gemini, or v0
+3. Navigate to ChatGPT, Claude.ai, Gemini, Perplexity, v0, Lovable, or Bolt
 4. Use the Alchemyst memory button (next to the input area) to toggle context injection
-5. Type your prompts normally - context will be automatically injected when enabled
+5. Type your prompts normally — context will be automatically injected when enabled
+6. To save a conversation, open the extension popup and click "Save Context" on a supported site
 
 ## Architecture
 
@@ -55,5 +57,9 @@ The extension uses Chrome Extension Manifest V3 and includes:
 - `https://chatgpt.com/*`
 - `https://claude.ai/*`
 - `https://gemini.google.com/*`
+- `https://www.perplexity.ai/*`
 - `https://v0.app/*`
+- `https://lovable.dev/*`
+- `https://lovable-api.com/*`
+- `https://bolt.new/*`
 - `https://platform-backend.getalchemystai.com/*`

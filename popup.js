@@ -125,9 +125,9 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   setSavingState(true);
   showStatus('Saving context...', 'info');
 
-  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app'))) {
+  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app') && !tab.url.includes('lovable.dev') && !tab.url.includes('perplexity.ai') && !tab.url.includes('bolt.new') && !tab.url.includes('manus.im') && !tab.url.includes('chat.deepseek.com'))) {
     console.warn('[Save Context] Invalid tab URL:', tab?.url);
-    showStatus('Please open a ChatGPT, Claude, Gemini, or v0 conversation first!', 'error');
+    showStatus('Please open a ChatGPT, Claude, Gemini, v0, Lovable, Perplexity, Bolt, Manus, or DeepSeek conversation first!', 'error');
     setSavingState(false);
     console.timeEnd('[Save Context] total');
     return;
@@ -252,7 +252,7 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   }
 });
 
-function scrapeConversation() {
+async function scrapeConversation() {
   try {
     console.log('[Scraper] Starting');
     console.time('[Scraper] total');
@@ -264,12 +264,28 @@ function scrapeConversation() {
     const claudeMatch = url.match(/\/chat\/([a-f0-9-]+)/);
     const geminiMatch = url.match(/\/app\/([a-f0-9]+)/);
     const v0Match = url.match(/\/chat\/([a-zA-Z0-9-_]+)/);
-    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match });
+    const lovableMatch = url.match(/lovable\.dev\/projects\/([a-f0-9-]+)/);
+    const perplexityMatch = url.match(/perplexity\.ai\/search\/([a-zA-Z0-9-_]+)/);
+    const boltMatch = url.match(/bolt\.new\/~\/([a-zA-Z0-9-]+)/);
+    const manusMatch = url.match(/manus\.im\/app\/([a-zA-Z0-9]+)/);
+    const deepseekMatch = url.match(/chat\.deepseek\.com\/a\/chat\/s\/([a-f0-9-]+)/);
+    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match, lovable: !!lovableMatch, perplexity: !!perplexityMatch, bolt: !!boltMatch, manus: !!manusMatch, deepseek: !!deepseekMatch });
 
+    // Check more specific patterns first (with domain) before generic /app/ patterns
     if (chatgptMatch) {
       memoryId = chatgptMatch[1];
     } else if (claudeMatch) {
       memoryId = claudeMatch[1];
+    } else if (manusMatch) {
+      memoryId = manusMatch[1];
+    } else if (deepseekMatch) {
+      memoryId = deepseekMatch[1];
+    } else if (lovableMatch) {
+      memoryId = lovableMatch[1];
+    } else if (perplexityMatch) {
+      memoryId = perplexityMatch[1];
+    } else if (boltMatch) {
+      memoryId = boltMatch[1];
     } else if (geminiMatch) {
       memoryId = geminiMatch[1];
     } else if (v0Match) {
@@ -434,6 +450,349 @@ function scrapeConversation() {
       });
       
       console.log('[Scraper] v0 done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    // Lovable branch
+    if (window.location.hostname.includes('lovable.dev')) {
+      console.log('[Scraper] Using Lovable selectors');
+      // Iteratively scroll the virtualized list to load all messages
+      const scroller = document.querySelector('.h-full.w-full.overflow-y-auto') || document.querySelector('[class*="overflow-y-auto"]');
+      let lastCount = -1;
+      for (let pass = 0; pass < 10; pass++) {
+        // Expand any truncated messages each pass
+        try {
+          document.querySelectorAll('button').forEach(btn => {
+            const txt = (btn.textContent || '').trim().toLowerCase();
+            if (txt === 'show more' || txt === 'show full message' || txt === 'show full') {
+              btn.click();
+            }
+          });
+        } catch (_) { }
+
+        const current = document.querySelectorAll('[data-message-id]').length;
+        if (current === lastCount) break;
+        lastCount = current;
+
+        if (scroller) {
+          try {
+            // Scroll through the list in steps to trigger virtualization rendering
+            const steps = 6;
+            for (let i = 0; i <= steps; i++) {
+              scroller.scrollTop = Math.floor((scroller.scrollHeight * i) / steps);
+              await new Promise(r => setTimeout(r, 120));
+            }
+          } catch (_) { }
+        } else {
+          // Fallback: window scroll
+          try {
+            const steps = 6;
+            for (let i = 0; i <= steps; i++) {
+              window.scrollTo(0, Math.floor((document.body.scrollHeight * i) / steps));
+              await new Promise(r => setTimeout(r, 120));
+            }
+          } catch (_) { }
+        }
+      }
+
+      // Collect messages by id and also raw bubbles (fallback)
+      const idItems = Array.from(document.querySelectorAll('[data-message-id]'));
+      const bubbles = Array.from(document.querySelectorAll('.overflow-wrap-anywhere'));
+      const items = idItems.length ? idItems : bubbles;
+      console.log('[Scraper] Found Lovable nodes:', { withIds: idItems.length, bubbles: bubbles.length });
+
+      items.forEach((item, idx) => {
+        const msgId = item.getAttribute('data-message-id') || item.id || `lovable-${idx}-${Date.now()}`;
+        // Determine role by id prefix or alignment
+        let role = 'assistant';
+        if (msgId.startsWith('umsg_')) role = 'user';
+        else if (msgId.startsWith('aimsg_')) role = 'assistant';
+        else {
+          // If we only have a bubble, inspect its wrapper row alignment
+          const row = item.closest('.flex.w-full.items-start') || item.parentElement;
+          const rightAligned = (row && /justify-end/.test(row.className)) || item.querySelector?.('.items-end, .justify-end');
+          role = rightAligned ? 'user' : 'assistant';
+        }
+
+        // Prefer the bubble content container to avoid toolbars
+        const bubble = item.matches?.('.overflow-wrap-anywhere') ? item : (item.querySelector?.('.overflow-wrap-anywhere') || item);
+        // Extract text from prose blocks within each message bubble
+        const proseBlocks = bubble.querySelectorAll('.prose p, .prose li, .prose code, .prose pre, [class*="prose"] p, [class*="prose"] li, [class*="prose"] code, [class*="prose"] pre');
+        let contentText = '';
+        proseBlocks.forEach((el) => {
+          const t = (el.textContent || '').trim();
+          if (t) { if (contentText) contentText += '\n'; contentText += t; }
+        });
+        if (!contentText) {
+          const fallback = (bubble.textContent || '').trim();
+          if (fallback) contentText = fallback;
+        }
+        if (contentText) {
+          contents.push({
+            content: `[${role}] ${contentText}`,
+            metadata: { source: memoryId, messageId: msgId }
+          });
+        }
+      });
+      console.log('[Scraper] Lovable done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    // Perplexity.ai branch: different DOM structure
+    if (window.location.hostname.includes('perplexity.ai')) {
+      console.log('[Scraper] Processing Perplexity conversation');
+      
+      // Look for message containers - Perplexity uses different selectors
+      const messageContainers = document.querySelectorAll('[data-testid*="message"], .group, .flex.flex-col.pb-2');
+      console.log('[Scraper] Found Perplexity message containers:', messageContainers.length);
+
+      messageContainers.forEach((container, idx) => {
+        const msgId = container.getAttribute('data-testid') || container.id || `perplexity-${idx}-${Date.now()}`;
+        
+        // Determine role by looking for user/assistant indicators
+        let role = 'assistant';
+        const isUserMessage = container.querySelector('[data-testid*="user"]') || 
+                             container.classList.contains('items-end') ||
+                             container.querySelector('.justify-end') ||
+                             container.querySelector('[class*="user"]');
+        
+        if (isUserMessage) {
+          role = 'user';
+        }
+
+        // Extract text content from the message
+        const textElements = container.querySelectorAll('p, div[class*="prose"], .prose p, .prose li, .prose code, .prose pre, [class*="prose"] p, [class*="prose"] li, [class*="prose"] code, [class*="prose"] pre, .break-words, .whitespace-pre-wrap');
+        let contentText = '';
+
+        textElements.forEach((el) => {
+          const text = (el.textContent || '').trim();
+          if (text && !text.includes('Share') && !text.includes('Export') && !text.includes('Rewrite')) {
+            if (contentText) contentText += '\n';
+            contentText += text;
+          }
+        });
+
+        // Fallback: get all text content if no specific elements found
+        if (!contentText) {
+          const fallback = (container.textContent || '').trim();
+          if (fallback && !fallback.includes('Share') && !fallback.includes('Export') && !fallback.includes('Rewrite')) {
+            contentText = fallback;
+          }
+        }
+
+        if (contentText && contentText.length > 10) { // Filter out very short content
+          contents.push({
+            content: `[${role}] ${contentText}`,
+            metadata: { source: memoryId, messageId: msgId }
+          });
+        }
+      });
+
+      console.log('[Scraper] Perplexity done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    // Bolt branch
+    if (window.location.hostname.includes('bolt.new')) {
+      console.log('[Scraper] Processing Bolt conversation');
+
+      // Scroll container might virtualize; try to ensure container is present
+      const root = document.querySelector('section[aria-label="Chat"]') || document;
+
+      const msgNodes = root.querySelectorAll('div[data-message-id]');
+      console.log('[Scraper] Found Bolt message nodes:', msgNodes.length);
+
+      msgNodes.forEach((node, idx) => {
+        const msgId = node.getAttribute('data-message-id') || `bolt-${idx}-${Date.now()}`;
+        // role: user bubbles appear right aligned with self-end or background class
+        let role = 'assistant';
+        const isUser = /self-end/.test(node.className) || /bg-bolt-elements-messages-background/.test(node.className);
+        if (isUser) role = 'user';
+
+        // Extract content from Markdown content blocks
+        let contentText = '';
+        const mdContainers = node.querySelectorAll('[class^="_MarkdownContent_"], [class*="_MarkdownContent_"]');
+        if (mdContainers.length) {
+          mdContainers.forEach((mc) => {
+            const parts = mc.querySelectorAll('p, li, code, pre');
+            parts.forEach((el) => {
+              const t = (el.textContent || '').trim();
+              if (t) { if (contentText) contentText += '\n'; contentText += t; }
+            });
+          });
+        }
+        if (!contentText) {
+          const fallback = (node.textContent || '').trim();
+          if (fallback) contentText = fallback;
+        }
+        if (contentText) {
+          contents.push({ content: `[${role}] ${contentText}`, metadata: { source: memoryId, messageId: msgId } });
+        }
+      });
+
+      console.log('[Scraper] Bolt done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    // Manus branch
+    if (window.location.hostname.includes('manus.im')) {
+      console.log('[Scraper] Processing Manus conversation');
+
+      // Find all message containers - user messages have flex-col items-end, assistant messages don't
+      const messageGroups = document.querySelectorAll('[data-event-id]');
+      console.log('[Scraper] Found Manus message groups:', messageGroups.length);
+
+      messageGroups.forEach((group, idx) => {
+        const eventId = group.getAttribute('data-event-id') || `manus-${idx}-${Date.now()}`;
+        
+        // Determine role: user messages are in flex-col items-end containers
+        let role = 'assistant';
+        const isUserMessage = group.querySelector('.flex.flex-col.items-end') ||
+                             group.classList.contains('items-end') ||
+                             group.querySelector('[class*="items-end"]');
+        
+        if (isUserMessage) {
+          role = 'user';
+        }
+
+        // Extract text content from the message bubble
+        // User messages: .rounded-\[12px\] with text content
+        // Assistant messages: similar structure
+        const messageBubble = group.querySelector('.rounded-\\[12px\\]') || 
+                             group.querySelector('[class*="rounded"]') ||
+                             group.querySelector('.relative.flex.items-center');
+        
+        let contentText = '';
+        
+        if (messageBubble) {
+          // Try to get text from span with u-break-words or similar
+          const textSpan = messageBubble.querySelector('.u-break-words') ||
+                          messageBubble.querySelector('[class*="break-words"]') ||
+                          messageBubble.querySelector('span');
+          
+          if (textSpan) {
+            contentText = (textSpan.textContent || '').trim();
+          }
+          
+          // Fallback: get all text from bubble
+          if (!contentText) {
+            contentText = (messageBubble.textContent || '').trim();
+          }
+        }
+        
+        // If still no content, try the whole group
+        if (!contentText) {
+          contentText = (group.textContent || '').trim();
+        }
+
+        // Filter out empty messages and UI elements
+        if (contentText && contentText.length > 3 && 
+            !contentText.includes('Friday') && 
+            !contentText.includes('Copy') &&
+            !contentText.includes('Save')) {
+          contents.push({
+            content: `[${role}] ${contentText}`,
+            metadata: { source: memoryId, messageId: eventId }
+          });
+          if (idx < 2) console.log('[Scraper] Manus added', { role, length: contentText.length });
+        }
+      });
+
+      console.log('[Scraper] Manus done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    // DeepSeek branch
+    if (window.location.hostname.includes('chat.deepseek.com')) {
+      console.log('[Scraper] Processing DeepSeek conversation');
+
+      // User messages: containers with data-um-id attribute
+      const userMessages = document.querySelectorAll('[data-um-id]');
+      console.log('[Scraper] Found DeepSeek user messages:', userMessages.length);
+
+      userMessages.forEach((container, idx) => {
+        const msgId = container.getAttribute('data-um-id') || `deepseek-user-${idx}-${Date.now()}`;
+        
+        // User message content is in .fbb737a4
+        const contentDiv = container.querySelector('.fbb737a4');
+        let contentText = '';
+        
+        if (contentDiv) {
+          contentText = (contentDiv.textContent || '').trim();
+        }
+        
+        // Fallback: get text from message bubble
+        if (!contentText) {
+          const messageBubble = container.querySelector('.ds-message');
+          if (messageBubble) {
+            contentText = (messageBubble.textContent || '').trim();
+          }
+        }
+
+        if (contentText && contentText.length > 0) {
+          contents.push({
+            content: `[user] ${contentText}`,
+            metadata: { source: memoryId, messageId: msgId }
+          });
+          if (idx < 2) console.log('[Scraper] DeepSeek user added', { length: contentText.length });
+        }
+      });
+
+      // Assistant messages: containers with _4f9bf79 class
+      const assistantMessages = document.querySelectorAll('._4f9bf79');
+      console.log('[Scraper] Found DeepSeek assistant messages:', assistantMessages.length);
+
+      assistantMessages.forEach((container, idx) => {
+        const msgId = container.id || `deepseek-assistant-${idx}-${Date.now()}`;
+        
+        // Assistant message content is in .ds-markdown
+        const markdownDiv = container.querySelector('.ds-markdown');
+        let contentText = '';
+        
+        if (markdownDiv) {
+          // Extract text from paragraphs
+          const paragraphs = markdownDiv.querySelectorAll('p.ds-markdown-paragraph, p');
+          paragraphs.forEach((p) => {
+            const text = (p.textContent || '').trim();
+            if (text) {
+              if (contentText) contentText += '\n';
+              contentText += text;
+            }
+          });
+          
+          // Fallback: get all text from markdown div
+          if (!contentText) {
+            contentText = (markdownDiv.textContent || '').trim();
+          }
+        }
+        
+        // Fallback: get text from message bubble
+        if (!contentText) {
+          const messageBubble = container.querySelector('.ds-message');
+          if (messageBubble) {
+            contentText = (messageBubble.textContent || '').trim();
+          }
+        }
+
+        // Filter out UI button text
+        if (contentText && contentText.length > 0 && 
+            !contentText.includes('Copy') &&
+            !contentText.includes('Regenerate') &&
+            !contentText.includes('Thumbs')) {
+          contents.push({
+            content: `[assistant] ${contentText}`,
+            metadata: { source: memoryId, messageId: msgId }
+          });
+          if (idx < 2) console.log('[Scraper] DeepSeek assistant added', { length: contentText.length });
+        }
+      });
+
+      console.log('[Scraper] DeepSeek done', { count: contents.length });
       console.timeEnd('[Scraper] total');
       return { memoryId, contents };
     }
