@@ -8,6 +8,7 @@
   const PERPLEXITY_ENDPOINT_REGEX = /\/rest\/sse\/perplexity_ask$/;
   const BOLT_ENDPOINT_REGEX = /\/api\/chat\/v2(?:\?|$)/;
   const DEEPSEEK_ENDPOINT_REGEX = /\/api\/v0\/chat\/completion$/;
+  const I10X_ENDPOINT_REGEX = /https:\/\/backend\.i10x\.ai\/llm$/;
   
   function shouldInterceptChatGPT(input, init) {
     try {
@@ -78,6 +79,14 @@
     } catch (_) { return false; }
   }
 
+  function shouldInterceptI10x(input, init) {
+    try {
+      const url = extractUrl(input, init);
+      const should = typeof url === 'string' && I10X_ENDPOINT_REGEX.test(url);
+      return should;
+    } catch (_) { return false; }
+  }
+
   // Get API key from localStorage
   const apiKey = localStorage.getItem('alchemystApiKey');
 
@@ -93,7 +102,7 @@
   }
 
   function shouldIntercept(input, init) {
-    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init) || shouldInterceptPerplexity(input, init) || shouldInterceptBolt(input, init) || shouldInterceptDeepSeek(input, init);
+    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init) || shouldInterceptPerplexity(input, init) || shouldInterceptBolt(input, init) || shouldInterceptDeepSeek(input, init) || shouldInterceptI10x(input, init);
   }
 
   function handleSSEIfApplicable(response, url) {
@@ -183,6 +192,9 @@
         } else if (url && DEEPSEEK_ENDPOINT_REGEX.test(url)) {
           // DeepSeek format
           userText = payload?.prompt || '';
+        } else if (url && I10X_ENDPOINT_REGEX.test(url)) {
+          // i10x.ai format
+          userText = payload?.text || '';
         }
       }
       
@@ -290,6 +302,9 @@
           } else if (url && DEEPSEEK_ENDPOINT_REGEX.test(url)) {
             // DeepSeek format
             payload.prompt = enriched;
+          } else if (url && I10X_ENDPOINT_REGEX.test(url)) {
+            // i10x.ai format
+            payload.text = enriched;
           }
           
           return JSON.stringify(payload);

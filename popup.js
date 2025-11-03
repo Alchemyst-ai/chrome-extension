@@ -125,9 +125,9 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   setSavingState(true);
   showStatus('Saving context...', 'info');
 
-  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app') && !tab.url.includes('lovable.dev') && !tab.url.includes('perplexity.ai') && !tab.url.includes('bolt.new') && !tab.url.includes('manus.im') && !tab.url.includes('chat.deepseek.com'))) {
+  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app') && !tab.url.includes('lovable.dev') && !tab.url.includes('perplexity.ai') && !tab.url.includes('bolt.new') && !tab.url.includes('manus.im') && !tab.url.includes('chat.deepseek.com') && !tab.url.includes('i10x.ai'))) {
     console.warn('[Save Context] Invalid tab URL:', tab?.url);
-    showStatus('Please open a ChatGPT, Claude, Gemini, v0, Lovable, Perplexity, Bolt, Manus, or DeepSeek conversation first!', 'error');
+    showStatus('Please open a ChatGPT, Claude, Gemini, v0, Lovable, Perplexity, Bolt, Manus, DeepSeek, or i10x conversation first!', 'error');
     setSavingState(false);
     console.timeEnd('[Save Context] total');
     return;
@@ -269,7 +269,8 @@ async function scrapeConversation() {
     const boltMatch = url.match(/bolt\.new\/~\/([a-zA-Z0-9-]+)/);
     const manusMatch = url.match(/manus\.im\/app\/([a-zA-Z0-9]+)/);
     const deepseekMatch = url.match(/chat\.deepseek\.com\/a\/chat\/s\/([a-f0-9-]+)/);
-    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match, lovable: !!lovableMatch, perplexity: !!perplexityMatch, bolt: !!boltMatch, manus: !!manusMatch, deepseek: !!deepseekMatch });
+    const i10xMatch = url.match(/i10x\.ai\/(?:chat\/)?([a-zA-Z0-9-_.]+)/);
+    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match, lovable: !!lovableMatch, perplexity: !!perplexityMatch, bolt: !!boltMatch, manus: !!manusMatch, deepseek: !!deepseekMatch, i10x: !!i10xMatch });
 
     // Check more specific patterns first (with domain) before generic /app/ patterns
     if (chatgptMatch) {
@@ -290,11 +291,61 @@ async function scrapeConversation() {
       memoryId = geminiMatch[1];
     } else if (v0Match) {
       memoryId = v0Match[1];
+    } else if (i10xMatch) {
+      memoryId = i10xMatch[1];
     } else {
       memoryId = 'unknown-' + Date.now();
     }
-
     const contents = [];
+    // i10x.ai branch
+    if (window.location.hostname.includes('i10x.ai')) {
+      console.log('[Scraper] Processing i10x conversation');
+
+      // Scope to the thread region to avoid header cards
+      const threadRegion = document.querySelector('.flex.h-full.flex-1.flex-col.items-center.overflow-y-auto') || document;
+
+      // User messages: bubbles with muted bg and rounded shape within grid rows
+      const userBubbles = threadRegion.querySelectorAll('[class*="bg-muted"][class*="rounded-3xl"], .bg-muted.rounded-3xl');
+      userBubbles.forEach((bubble, idx) => {
+        const msgId = bubble.id || `i10x-user-${idx}-${Date.now()}`;
+        let contentText = '';
+        // Gather common text-bearing nodes
+        const textNodes = bubble.querySelectorAll('p, li, pre, code, span, div');
+        textNodes.forEach((el) => {
+          const t = (el.textContent || '').trim();
+          if (t) { if (contentText) contentText += '\n'; contentText += t; }
+        });
+        if (!contentText) contentText = (bubble.textContent || '').trim();
+        // Filter UI noise
+        if (contentText && contentText.length > 3 && !/Copy|Model Used|Show More/i.test(contentText)) {
+          contents.push({ content: `[user] ${contentText}`, metadata: { source: memoryId, messageId: msgId } });
+        }
+      });
+
+      // Assistant messages: rich content blocks under the thread (exclude header cards with data-slot="card")
+      const assistantBlocks = threadRegion.querySelectorAll('.text-foreground .prose, .text-foreground .prose-sm, .prose, .prose-sm');
+      assistantBlocks.forEach((blk, idx) => {
+        // Skip if inside a header card area
+        if (blk.closest('[data-slot="card"]')) return;
+        const msgId = blk.id || `i10x-assistant-${idx}-${Date.now()}`;
+        let contentText = '';
+        const elts = blk.querySelectorAll('h1, h2, h3, p, li, code, pre');
+        elts.forEach((el) => {
+          const t = (el.textContent || '').trim();
+          if (t) { if (contentText) contentText += '\n'; contentText += t; }
+        });
+        if (!contentText) contentText = (blk.textContent || '').trim();
+        if (contentText && contentText.length > 3) {
+          contents.push({ content: `[assistant] ${contentText}`, metadata: { source: memoryId, messageId: msgId } });
+        }
+      });
+
+      console.log('[Scraper] i10x done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
+
+    
 
     // Claude.ai branch: different DOM
     if (window.location.hostname.includes('claude.ai')) {
