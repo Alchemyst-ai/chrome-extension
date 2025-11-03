@@ -281,4 +281,13 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   } catch (error) {
     console.error("[Install] Failed to set uninstall URL:", error);
   }
+
+  // Open welcome page on first install
+  try {
+    if (details?.reason === 'install') {
+      chrome.tabs.create({ url: 'https://platform.getalchemystai.com/' });
+    }
+  } catch (e) {
+    console.warn('[Install] Failed to open welcome page', e);
+  }
 });
