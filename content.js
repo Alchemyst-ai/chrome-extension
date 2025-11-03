@@ -98,6 +98,10 @@ document.addEventListener("keydown", async (e) => {
   if (window.location.hostname.includes('chat.deepseek.com')) {
     return; // Let the natural flow continue
   }
+  // For i10x.ai, let the inpage script handle request interception
+  if (window.location.hostname.includes('i10x.ai')) {
+    return; // Let the natural flow continue
+  }
 
     if (alchemystInjectionInProgress) {
       // Allow the natural submit after we've injected once
@@ -298,6 +302,22 @@ setInterval(() => {
         } else {
           return;
         }
+      } else if (windowUrl.includes('i10x.ai')) {
+        // i10x.ai: Insert beside the Send button within the composer block (not header)
+        // Find the composer container via the textarea[name="input"]
+        const textarea = document.querySelector('textarea[name="input"]');
+        const composer = textarea ? textarea.parentElement : null; // the rounded-lg border p-3 container
+        if (!composer) return;
+        const toolbarRow = composer.querySelector('.flex.justify-between') ||
+                           composer.querySelector('[class*="flex"][class*="justify-between"]');
+        if (!toolbarRow) return;
+
+        // Find the actual Send button and insert our icon as its sibling
+        const sendIcon = toolbarRow.querySelector('.lucide-send-horizontal');
+        const sendButton = sendIcon ? sendIcon.closest('button') : null;
+        if (!sendButton || !sendButton.parentElement) return;
+        parentFlex = sendButton.parentElement;
+        target = sendButton; // place our wrapper before the send button
       }
 
       if (!parentFlex || !target) return;
@@ -360,6 +380,13 @@ setInterval(() => {
         wrapper.style.background = 'transparent';
         wrapper.style.boxShadow = 'none';
         wrapper.style.marginRight = '8px';
+      }
+      // i10x-specific styling (blend with toolbar, sits next to Send)
+      if (windowUrl.includes('i10x.ai')) {
+        wrapper.style.border = 'none';
+        wrapper.style.background = 'transparent';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.marginRight = '6px';
       }
       // Load initial state
       const isEnabled = localStorage.getItem(MEMORY_STATE_KEY) === 'true';
@@ -544,6 +571,15 @@ setInterval(() => {
         } catch (e) { }
       } else if (windowUrl.includes('chat.deepseek.com')) {
         // DeepSeek: Insert in button container before first button
+        try {
+          if (target && target !== parentFlex) {
+            parentFlex.insertBefore(wrapper, target);
+          } else {
+            parentFlex.insertBefore(wrapper, parentFlex.firstChild);
+          }
+        } catch (e) { }
+      } else if (windowUrl.includes('i10x.ai')) {
+        // i10x.ai: Insert in right group immediately before the send button
         try {
           if (target && target !== parentFlex) {
             parentFlex.insertBefore(wrapper, target);
