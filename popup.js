@@ -8,6 +8,35 @@
   document.getElementById('apiKey').value = alchemystApiKey || '';
   document.getElementById('versionContainer').innerHTML = `v${version}`;
   // document.getElementById('useApi').checked = useAlchemystApi || false;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const url = tab?.url || '';
+    const isSupported = (
+      url.includes('chatgpt.com') ||
+      url.includes('chat.openai.com') ||
+      url.includes('claude.ai') ||
+      url.includes('gemini.google.com') ||
+      url.includes('v0.app') ||
+      url.includes('lovable.dev') ||
+      url.includes('perplexity.ai') ||
+      url.includes('bolt.new') ||
+      url.includes('manus.im') ||
+      url.includes('chat.deepseek.com') ||
+      url.includes('i10x.ai')
+    );
+    const saveBtn = document.getElementById('saveContext');
+    if (saveBtn) {
+      if (!isSupported) {
+        saveBtn.disabled = true;
+        saveBtn.title = 'Save Context is not supported on this site';
+        saveBtn.style.opacity = '0.6';
+      } else {
+        saveBtn.disabled = false;
+        saveBtn.title = 'Save this conversation to Alchemyst';
+        saveBtn.style.opacity = '1';
+      }
+    }
+  } catch (_) { }
 })();
 
 // UI helpers for feedback
