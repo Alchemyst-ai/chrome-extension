@@ -29,7 +29,8 @@
     "https://manus.im/*",
     "https://chat.deepseek.com/*",
     "https://i10x.ai/*",
-    "https://platform-backend.getalchemystai.com/*"
+    "https://platform-backend.getalchemystai.com/*",
+    "https://agt.compasai.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -47,7 +48,8 @@
         "https://bolt.new/*",
         "https://manus.im/*",
         "https://chat.deepseek.com/*",
-        "https://i10x.ai/*"
+        "https://i10x.ai/*",
+        "https://agt.compasai.com/*"
       ],
       "js": [
         "content.js"
@@ -73,7 +75,8 @@
         "https://bolt.new/*",
         "https://manus.im/*",
         "https://chat.deepseek.com/*",
-        "https://i10x.ai/*"
+        "https://i10x.ai/*",
+        "https://agt.compasai.com/*"
       ]
     }
   ],
