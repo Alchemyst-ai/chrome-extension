@@ -103,6 +103,72 @@ chrome.runtime.onConnect.addListener((port) => {
       return;
     }
 
+    if (msg?.type === "verifyInvitation") {
+      console.log('[verifyInvitation] Received', { id: msg?.id, code: msg?.code });
+      try {
+        const { alchemystApiKey } = await chrome.storage.local.get("alchemystApiKey");
+        if (!alchemystApiKey) {
+          if (!isDisconnected) {
+            try { 
+              port.postMessage({ id: msg.id, error: "No API key found." });
+            } catch (_) {}
+          }
+          return;
+        }
+
+        const res = await fetch(
+          "https://platform-backend.getalchemystai.com/api/v1/referral/verify",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${alchemystApiKey}`,
+            },
+            body: JSON.stringify({
+              code: msg.code,
+            }),
+          }
+        );
+
+        const data = await res.json().catch(() => ({ error: 'Invalid response' }));
+
+        if (res.ok) {
+          // Success response: { success: true, message: "...", referrer: { id, name } }
+          if (!isDisconnected) {
+            try {
+              port.postMessage({ 
+                id: msg.id, 
+                ok: true, 
+                message: data?.message || 'Referral code verified successfully',
+                referrer: data?.referrer
+              });
+            } catch (_) {}
+          }
+        } else {
+          // Error response: { error: "...", message?: "...", details?: [...] }
+          const errorMessage = data?.error || data?.message || `HTTP ${res.status}`;
+          if (!isDisconnected) {
+            try {
+              port.postMessage({ 
+                id: msg.id, 
+                error: errorMessage,
+                message: data?.message,
+                details: data?.details
+              });
+            } catch (_) {}
+          }
+        }
+      } catch (err) {
+        console.error("[Port] verifyInvitation error:", err);
+        if (!isDisconnected) {
+          try {
+            port.postMessage({ id: msg.id, error: "Failed to verify invitation" });
+          } catch (_) {}
+        }
+      }
+      return;
+    }
+
     if (msg?.type === "fetchContext") {
       // Guard: avoid network call for empty/whitespace-only queries
       const trimmedQuery = String(msg?.query || "").trim();

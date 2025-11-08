@@ -146,6 +146,74 @@ document.getElementById("saveKey").addEventListener("click", async () => {
   }
 });
 
+document.getElementById("verifyInvitation").addEventListener("click", async () => {
+  const invitationCode = document.getElementById("invitationCode").value.trim();
+  if (!invitationCode) {
+    showStatus('Please enter an invitation code!', 'error');
+    return;
+  }
+
+  const { alchemystApiKey } = await chrome.storage.local.get(['alchemystApiKey']);
+  if (!alchemystApiKey) {
+    showStatus('Please save your API key first!', 'error');
+    return;
+  }
+
+  const verifyBtn = document.getElementById("verifyInvitation");
+  const originalText = verifyBtn.textContent;
+  verifyBtn.disabled = true;
+  verifyBtn.textContent = 'Verifying...';
+  verifyBtn.style.opacity = '0.7';
+
+  try {
+    const port = chrome.runtime.connect({ name: "alchemyst" });
+    const messageId = Date.now() + Math.random();
+
+    port.onMessage.addListener((response) => {
+      if (response.id === messageId) {
+        try { port.disconnect(); } catch (_) { }
+        if (response.ok) {
+          // Success: show message and referrer info if available
+          let successMsg = response.message || 'Referral code verified successfully!';
+          if (response.referrer?.name) {
+            successMsg += ` Referred by: ${response.referrer.name}`;
+          }
+          showStatus(successMsg, 'success');
+          document.getElementById("invitationCode").value = '';
+        } else {
+          // Error: show the exact error message from backend
+          let errorMsg = response.error || 'Unknown error';
+          // Include additional message if available
+          if (response.message && response.message !== errorMsg) {
+            errorMsg = response.message;
+          }
+          // Include validation details if available
+          if (response.details && Array.isArray(response.details) && response.details.length > 0) {
+            const detailMsg = response.details.map(d => d.message || d.msg).join(', ');
+            errorMsg += `: ${detailMsg}`;
+          }
+          showStatus(errorMsg, 'error');
+        }
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = originalText;
+        verifyBtn.style.opacity = '1';
+      }
+    });
+
+    port.postMessage({
+      type: "verifyInvitation",
+      id: messageId,
+      code: invitationCode
+    });
+  } catch (error) {
+    console.error('[Verify Invitation] Error:', error);
+    showStatus(`Failed to verify invitation: ${error.message}`, 'error');
+    verifyBtn.disabled = false;
+    verifyBtn.textContent = originalText;
+    verifyBtn.style.opacity = '1';
+  }
+});
+
 document.getElementById("saveContext").addEventListener("click", async () => {
   console.log('[Save Context] Clicked');
   console.time('[Save Context] total');
