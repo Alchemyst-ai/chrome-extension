@@ -83,10 +83,19 @@ document.addEventListener("keydown", async (e) => {
     const query = getPromptText(inputEl);
     if (!query) return;
 
+    try {
+      const memoryEnabled = localStorage.getItem('alchemyst_memory_enabled') === 'true';
+      if (!memoryEnabled) return;
+    } catch (_) { /* ignore */ }
+
   // For Gemini, let the inpage script handle request interception
   // Don't interfere with the Enter key for Gemini
   if (window.location.hostname.includes('gemini.google.com')) {
     return; // Let the natural flow continue
+  }
+  // ChatGPT.
+  if (window.location.hostname.includes('chatgpt.com')) {
+    return;
   }
   // For Perplexity, let the inpage script handle request interception
   // Don't interfere with the Enter key for Perplexity

@@ -321,6 +321,13 @@
   const origFetch = window.fetch;
   window.fetch = async function (input, init) {
     try {
+      try {
+        const memoryEnabled = localStorage.getItem('alchemyst_memory_enabled') === 'true';
+        if (!memoryEnabled) {
+          return origFetch.apply(this, arguments);
+        }
+      } catch (_) { }
+
       if (shouldIntercept(input, init)) {
         const url = extractUrl(input, init);
         // Intercepting request
@@ -396,6 +403,13 @@
   };
   
   XMLHttpRequest.prototype.send = function (body) {
+    try {
+      const memoryEnabled = localStorage.getItem('alchemyst_memory_enabled') === 'true';
+      if (!memoryEnabled) {
+        return origSend.apply(this, arguments);
+      }
+    } catch (_) { }
+
     if (this.__alch_url && typeof this.__alch_url === 'string' && shouldIntercept(this.__alch_url, null) && body) {
       try {
         const proceed = async () => {
