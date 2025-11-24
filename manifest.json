@@ -9,7 +9,7 @@
   "short_name": "Alchemyst AI",
   "homepage_url": "https://platform.getalchemystai.com",
   "name": "Alchemyst - AI context, AI memory everywhere",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Carry your context and memory with you while using AI tools using Alchemyst AI.",
   "permissions": [
     "storage",
