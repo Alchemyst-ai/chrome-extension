@@ -111,6 +111,10 @@ document.addEventListener("keydown", async (e) => {
   if (window.location.hostname.includes('i10x.ai')) {
     return; // Let the natural flow continue
   }
+  // For Emergent AI, let the inpage script handle request interception
+  if (window.location.hostname.includes('app.emergent.sh')) {
+    return; // Let the natural flow continue
+  }
 
     if (alchemystInjectionInProgress) {
       // Allow the natural submit after we've injected once
@@ -327,9 +331,88 @@ setInterval(() => {
         if (!sendButton || !sendButton.parentElement) return;
         parentFlex = sendButton.parentElement;
         target = sendButton; // place our wrapper before the send button
+      } else if (windowUrl.includes('app.emergent.sh')) {
+        // Emergent: Insert in the button toolbar, in the left group with other action buttons
+        // Strategy: Find textarea -> form -> buttons container -> left group
+        // Works for all Emergent pages (chat, running agent, main task page, etc.)
+        
+        // Try both textarea variants (chat page and main task page)
+        let textarea = document.querySelector('[data-testid="chat-input-textarea"]') ||
+                      document.querySelector('[data-testid="main-task-input"]') ||
+                      document.querySelector('#mainTaskInput');
+        
+        if (!textarea) return;
+        
+        // Find the form or parent container
+        let form = textarea.closest('form');
+        // If no form, find the parent container that has the buttons
+        if (!form) {
+          const textareaContainer = textarea.closest('div');
+          if (textareaContainer) {
+            form = textareaContainer.parentElement;
+          }
+        }
+        if (!form) return;
+        
+        // Find the buttons container (div with flex items-center justify-between)
+        // Try multiple strategies to find it
+        let buttonsContainer = Array.from(form.querySelectorAll('div')).find(div => {
+          return div.classList.contains('flex') && 
+                 div.classList.contains('items-center') && 
+                 div.classList.contains('justify-between') &&
+                 (div.querySelector('[data-testid="chat-input-submit"]') || 
+                  div.querySelector('[data-testid="main-task-submit"]') ||
+                  div.querySelector('button[type="submit"]') ||
+                  div.querySelector('img[src*="send.svg"]') ||
+                  div.querySelector('img[src*="pause.svg"]') ||
+                  div.querySelector('img[src*="submit-arrow.svg"]'));
+        });
+        
+        // Fallback: find by class structure even without submit button
+        if (!buttonsContainer) {
+          buttonsContainer = Array.from(form.querySelectorAll('div')).find(div => {
+            return div.classList.contains('flex') && 
+                   div.classList.contains('items-center') && 
+                   div.classList.contains('justify-between') &&
+                   (div.classList.contains('p-2.5') || div.classList.contains('p-2'));
+          });
+        }
+        
+        if (!buttonsContainer) return;
+        
+        // Find the left group (div with relative flex items-center gap-2 OR flex flex-row items-center gap-2)
+        // This contains attach, GitHub, Fork, Ultra buttons (or attach, GitHub, model selector for main task page)
+        let leftGroup = Array.from(buttonsContainer.querySelectorAll('div')).find(div => {
+          const hasFlex = div.classList.contains('flex');
+          const hasItemsCenter = div.classList.contains('items-center');
+          const hasGap2 = div.classList.contains('gap-2');
+          const hasRelative = div.classList.contains('relative');
+          const hasFlexRow = div.classList.contains('flex-row');
+          
+          // Check for common button indicators
+          const hasAttach = div.querySelector('img[src*="attach.svg"]') || 
+                           div.querySelector('img[src*="copy-paperclip.svg"]') ||
+                           div.querySelector('img[src*="paperclip"]');
+          const hasGitHub = div.querySelector('img[src*="white-github.svg"]') ||
+                           div.querySelector('img[src*="github-icon.svg"]') ||
+                           div.querySelector('img[src*="github"]');
+          const hasFork = div.querySelector('img[src*="fork.svg"]');
+          const hasModelSelector = div.querySelector('[data-testid="model-selector"]');
+          
+          return hasFlex && hasItemsCenter && hasGap2 && 
+                 (hasRelative || hasFlexRow) &&
+                 (hasAttach || hasGitHub || hasFork || hasModelSelector);
+        });
+        
+        if (leftGroup) {
+          parentFlex = leftGroup;
+          target = null;
+        } else {
+          return;
+        }
       }
 
-      if (!parentFlex || !target) return;
+      if (!parentFlex) return;
 
       // If already present, exit
       if (document.getElementById(BTN_ID)) return;
@@ -397,6 +480,29 @@ setInterval(() => {
         wrapper.style.boxShadow = 'none';
         wrapper.style.marginRight = '6px';
       }
+      // Emergent-specific styling (match button style: bg-[#FFFFFF14], rounded-full)
+      if (windowUrl.includes('app.emergent.sh')) {
+        wrapper.style.border = 'none';
+        wrapper.style.background = 'rgba(255, 255, 255, 0.08)';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.borderRadius = '30px';
+        wrapper.style.width = '36px';
+        wrapper.style.height = '36px';
+        wrapper.style.padding = '8px';
+        wrapper.style.marginRight = '0';
+        wrapper.style.marginLeft = '0';
+        wrapper.style.transition = 'background-color 0.2s';
+        wrapper.style.flexShrink = '0';
+        wrapper.style.flexGrow = '0';
+        // Add hover effect to match other buttons
+        wrapper.addEventListener('mouseenter', () => {
+          wrapper.style.background = 'rgba(255, 255, 255, 0.1)';
+        });
+        wrapper.addEventListener('mouseleave', () => {
+          const isEnabled = wrapper.getAttribute('data-memory-enabled') === 'true';
+          wrapper.style.background = 'rgba(255, 255, 255, 0.08)';
+        });
+      }
       // Load initial state
       const isEnabled = localStorage.getItem(MEMORY_STATE_KEY) === 'true';
       wrapper.title = isEnabled ? 'Memory ON - Click to disable' : 'Memory OFF - Click to enable';
@@ -412,6 +518,9 @@ setInterval(() => {
       img.height = 20;
       img.style.borderRadius = '50%';
       img.title = 'Alchemyst Memory';
+      img.style.display = 'block';
+      img.style.maxWidth = '100%';
+      img.style.height = 'auto';
 
       wrapper.appendChild(img);
 
@@ -596,6 +705,14 @@ setInterval(() => {
             parentFlex.insertBefore(wrapper, parentFlex.firstChild);
           }
         } catch (e) { }
+      } else if (windowUrl.includes('app.emergent.sh')) {
+        // Emergent: Insert as the last element in the left button group
+        try {
+          if (parentFlex) {
+            // Append to the end of the left group to make it the last element
+            parentFlex.appendChild(wrapper);
+          }
+        } catch (e) { }
       }
 
       // Click handler – emit a custom event the inpage script could listen to if needed
@@ -722,26 +839,60 @@ const pendingRequests = new Map();
         try {
           console.log('Alchemyst: requesting context from background script');
 
+          if (!chrome || !chrome.runtime || !chrome.runtime.connect) {
+            console.error('Alchemyst: chrome.runtime not available - extension context may be invalidated');
+            return '';
+          }
+
           // Use persistent port connection instead of sendMessage
           return new Promise((resolve, reject) => {
-            const port = chrome.runtime.connect({ name: 'alchemyst' });
+            let port;
+            let timeoutId;
+            let resolved = false;
+
+            try {
+              port = chrome.runtime.connect({ name: 'alchemyst' });
+            } catch (err) {
+              console.error('Alchemyst: Failed to connect to background script:', err);
+              resolve('');
+              return;
+            }
+
+            // Generate unique ID for this request
+            const requestId = Date.now() + Math.random();
+
+            const cleanup = () => {
+              if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+              }
+              if (port) {
+                try {
+                  port.disconnect();
+                } catch (e) {
+                  // Port might already be disconnected
+                }
+              }
+            };
 
             // Set up response handler
             port.onMessage.addListener((response) => {
+              if (resolved) return;
               console.log('Alchemyst: received response from background script via port:', response);
 
               // Check if this response is for our request
               if (response.id === requestId) {
-                port.disconnect();
+                resolved = true;
+                cleanup();
 
-                if (response && response.context) {
-                  console.log('Alchemyst: API call successful, context:', response.context);
-                  resolve(response.context);
+                if (response && response.context !== undefined) {
+                  console.log('Alchemyst: API call successful, context length:', response.context?.length || 0);
+                  resolve(response.context || '');
                 } else if (response && response.error) {
                   console.log('Alchemyst: API call failed:', response.error);
                   resolve('');
                 } else {
-                  console.log('Alchemyst: no response from background script');
+                  console.log('Alchemyst: unexpected response format:', response);
                   resolve('');
                 }
               } else {
@@ -751,30 +902,48 @@ const pendingRequests = new Map();
 
             // Set up error handler
             port.onDisconnect.addListener(() => {
-              console.log('Alchemyst: port disconnected');
+              if (resolved) return;
+              const error = chrome.runtime.lastError;
+              if (error) {
+                console.error('Alchemyst: port disconnected with error:', error.message);
+              } else {
+                console.log('Alchemyst: port disconnected');
+              }
+              resolved = true;
+              cleanup();
               resolve('');
             });
 
-            // Generate unique ID for this request
-            const requestId = Date.now() + Math.random();
-
             // Send the request
-            console.log('Alchemyst: sending fetchContext message via port with ID:', requestId);
-            port.postMessage({
-              type: 'fetchContext',
-              query: query,
-              id: requestId
-            });
+            try {
+              console.log('Alchemyst: sending fetchContext message via port with ID:', requestId);
+              port.postMessage({
+                type: 'fetchContext',
+                query: query,
+                id: requestId
+              });
+            } catch (err) {
+              console.error('Alchemyst: Failed to send message via port:', err);
+              resolved = true;
+              cleanup();
+              resolve('');
+              return;
+            }
 
-            // Timeout after 10 seconds
-            setTimeout(() => {
+            // Timeout after 60 seconds
+            timeoutId = setTimeout(() => {
+              if (resolved) return;
               console.log('Alchemyst: port request timeout');
-              port.disconnect();
+              resolved = true;
+              cleanup();
               resolve('');
             }, 60_000);
           });
         } catch (err) {
-          console.log('Alchemyst: background script call failed:', err);
+          console.error('Alchemyst: background script call failed:', err);
+          if (err && err.message && err.message.includes('Extension context invalidated')) {
+            console.error('Alchemyst: Extension context invalidated - extension may need to be reloaded');
+          }
           return '';
         }
       })();

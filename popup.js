@@ -125,9 +125,9 @@ document.getElementById("saveContext").addEventListener("click", async () => {
   setSavingState(true);
   showStatus('Saving context...', 'info');
 
-  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app') && !tab.url.includes('lovable.dev') && !tab.url.includes('perplexity.ai') && !tab.url.includes('bolt.new') && !tab.url.includes('manus.im') && !tab.url.includes('chat.deepseek.com') && !tab.url.includes('i10x.ai'))) {
+  if (!tab?.url || (!tab.url.includes('chatgpt.com') && !tab.url.includes('chat.openai.com') && !tab.url.includes('claude.ai') && !tab.url.includes('gemini.google.com') && !tab.url.includes('v0.app') && !tab.url.includes('lovable.dev') && !tab.url.includes('perplexity.ai') && !tab.url.includes('bolt.new') && !tab.url.includes('manus.im') && !tab.url.includes('chat.deepseek.com') && !tab.url.includes('i10x.ai') && !tab.url.includes('app.emergent.sh'))) {
     console.warn('[Save Context] Invalid tab URL:', tab?.url);
-    showStatus('Please open a ChatGPT, Claude, Gemini, v0, Lovable, Perplexity, Bolt, Manus, DeepSeek, or i10x conversation first!', 'error');
+    showStatus('Please open a ChatGPT, Claude, Gemini, v0, Lovable, Perplexity, Bolt, Manus, DeepSeek, i10x, or Emergent conversation first!', 'error');
     setSavingState(false);
     console.timeEnd('[Save Context] total');
     return;
@@ -270,7 +270,8 @@ async function scrapeConversation() {
     const manusMatch = url.match(/manus\.im\/app\/([a-zA-Z0-9]+)/);
     const deepseekMatch = url.match(/chat\.deepseek\.com\/a\/chat\/s\/([a-f0-9-]+)/);
     const i10xMatch = url.match(/i10x\.ai\/(?:chat\/)?([a-zA-Z0-9-_.]+)/);
-    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match, lovable: !!lovableMatch, perplexity: !!perplexityMatch, bolt: !!boltMatch, manus: !!manusMatch, deepseek: !!deepseekMatch, i10x: !!i10xMatch });
+    const emergentMatch = url.match(/app\.emergent\.sh\/(.*)$/);
+    console.log('[Scraper] Matches:', { chatgpt: !!chatgptMatch, claude: !!claudeMatch, gemini: !!geminiMatch, v0: !!v0Match, lovable: !!lovableMatch, perplexity: !!perplexityMatch, bolt: !!boltMatch, manus: !!manusMatch, deepseek: !!deepseekMatch, i10x: !!i10xMatch, emergent: !!emergentMatch });
 
     // Check more specific patterns first (with domain) before generic /app/ patterns
     if (chatgptMatch) {
@@ -293,10 +294,72 @@ async function scrapeConversation() {
       memoryId = v0Match[1];
     } else if (i10xMatch) {
       memoryId = i10xMatch[1];
+    } else if (emergentMatch) {
+      memoryId = emergentMatch[1] || 'emergent';
     } else {
       memoryId = 'unknown-' + Date.now();
     }
     const contents = [];
+    // Emergent AI branch
+    if (window.location.hostname.includes('app.emergent.sh')) {
+      console.log('[Scraper] Processing Emergent conversation');
+
+      memoryId = `emergent-${Date.now()}`;
+
+      const listRoot = document.querySelector('[data-testid="virtuoso-item-list"]') || document;
+      const itemNodes = Array.from(listRoot.querySelectorAll('[data-item-index]'));
+
+      // If no virtualized items found, fall back to any agent/user blocks
+      const fallbackNodes = Array.from(document.querySelectorAll('[data-testid^="agent-message-message"], #user-task'));
+      const nodes = itemNodes.length ? itemNodes : fallbackNodes;
+      console.log('[Scraper] Emergent nodes found:', nodes.length);
+
+      const seenIds = new Set();
+
+      const extractText = (root) => {
+        let text = '';
+        const proseBlocks = root.querySelectorAll('.prose, .prose-invert, [class*="prose"]');
+        const candidates = proseBlocks.length ? proseBlocks : [root];
+        candidates.forEach((blk) => {
+          const els = blk.querySelectorAll('p, li, pre, code, span, div');
+          els.forEach((el) => {
+            const t = (el.textContent || '').trim();
+            if (t) {
+              if (text) text += '\n';
+              text += t;
+            }
+          });
+        });
+        if (!text) {
+          text = (root.textContent || '').trim();
+        }
+        return text;
+      };
+
+      nodes.forEach((node, idx) => {
+        // Determine role
+        const isAssistant = !!node.querySelector('[data-testid^="agent-message-message"]');
+        const role = isAssistant ? 'assistant' : 'user';
+
+        // Derive messageId
+        const idAttr = node.getAttribute?.('data-testid') || node.getAttribute?.('id') || '';
+        const messageId = idAttr || `emergent-${role}-${idx}-${Date.now()}`;
+        if (seenIds.has(messageId)) return;
+        seenIds.add(messageId);
+
+        const contentText = extractText(node);
+        if (contentText && contentText.trim().length > 0) {
+          contents.push({
+            content: `[${role}] ${contentText}`,
+            metadata: { source: memoryId, messageId }
+          });
+        }
+      });
+
+      console.log('[Scraper] Emergent done', { count: contents.length });
+      console.timeEnd('[Scraper] total');
+      return { memoryId, contents };
+    }
     // i10x.ai branch
     if (window.location.hostname.includes('i10x.ai')) {
       console.log('[Scraper] Processing i10x conversation');

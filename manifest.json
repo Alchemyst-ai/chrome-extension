@@ -29,6 +29,7 @@
     "https://manus.im/*",
     "https://chat.deepseek.com/*",
     "https://i10x.ai/*",
+    "https://app.emergent.sh/*",
     "https://platform-backend.getalchemystai.com/*"
   ],
   "background": {
@@ -47,7 +48,8 @@
         "https://bolt.new/*",
         "https://manus.im/*",
         "https://chat.deepseek.com/*",
-        "https://i10x.ai/*"
+        "https://i10x.ai/*",
+        "https://app.emergent.sh/*"
       ],
       "js": [
         "content.js"
@@ -73,7 +75,8 @@
         "https://bolt.new/*",
         "https://manus.im/*",
         "https://chat.deepseek.com/*",
-        "https://i10x.ai/*"
+        "https://i10x.ai/*",
+        "https://app.emergent.sh/*"
       ]
     }
   ],

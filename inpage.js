@@ -9,6 +9,8 @@
   const BOLT_ENDPOINT_REGEX = /\/api\/chat\/v2(?:\?|$)/;
   const DEEPSEEK_ENDPOINT_REGEX = /\/api\/v0\/chat\/completion$/;
   const I10X_ENDPOINT_REGEX = /https:\/\/backend\.i10x\.ai\/llm$/;
+  const EMERGENT_HITL_QUEUE_REGEX = /https:\/\/api\.emergent\.sh\/jobs\/v0\/hitl-queue\/$/;
+  const EMERGENT_SUBMIT_QUEUE_REGEX = /https:\/\/api\.emergent\.sh\/jobs\/v0\/submit-queue\/$/;
   
   function shouldInterceptChatGPT(input, init) {
     try {
@@ -87,6 +89,14 @@
     } catch (_) { return false; }
   }
 
+  function shouldInterceptEmergent(input, init) {
+    try {
+      const url = extractUrl(input, init);
+      const should = typeof url === 'string' && (EMERGENT_HITL_QUEUE_REGEX.test(url) || EMERGENT_SUBMIT_QUEUE_REGEX.test(url));
+      return should;
+    } catch (_) { return false; }
+  }
+
   // Get API key from localStorage
   const apiKey = localStorage.getItem('alchemystApiKey');
 
@@ -102,7 +112,7 @@
   }
 
   function shouldIntercept(input, init) {
-    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init) || shouldInterceptPerplexity(input, init) || shouldInterceptBolt(input, init) || shouldInterceptDeepSeek(input, init) || shouldInterceptI10x(input, init);
+    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init) || shouldInterceptPerplexity(input, init) || shouldInterceptBolt(input, init) || shouldInterceptDeepSeek(input, init) || shouldInterceptI10x(input, init) || shouldInterceptEmergent(input, init);
   }
 
   function handleSSEIfApplicable(response, url) {
@@ -195,6 +205,9 @@
         } else if (url && I10X_ENDPOINT_REGEX.test(url)) {
           // i10x.ai format
           userText = payload?.text || '';
+        } else if (url && (EMERGENT_HITL_QUEUE_REGEX.test(url) || EMERGENT_SUBMIT_QUEUE_REGEX.test(url))) {
+          // Emergent AI format
+          userText = payload?.payload?.task || payload?.task || '';
         }
       }
       
@@ -305,6 +318,15 @@
           } else if (url && I10X_ENDPOINT_REGEX.test(url)) {
             // i10x.ai format
             payload.text = enriched;
+          } else if (url && (EMERGENT_HITL_QUEUE_REGEX.test(url) || EMERGENT_SUBMIT_QUEUE_REGEX.test(url))) {
+            // Emergent AI format - enrich payload.payload.task or payload.task
+            if (payload?.payload && typeof payload.payload === 'object' && payload.payload.task) {
+              // Task is in nested payload object
+              payload.payload.task = enriched;
+            } else if (payload && typeof payload === 'object') {
+              // Task is at top level
+              payload.task = enriched;
+            }
           }
           
           return JSON.stringify(payload);
