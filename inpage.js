@@ -11,6 +11,7 @@
   const I10X_ENDPOINT_REGEX = /https:\/\/backend\.i10x\.ai\/llm$/;
   const EMERGENT_HITL_QUEUE_REGEX = /https:\/\/api\.emergent\.sh\/jobs\/v0\/hitl-queue\/$/;
   const EMERGENT_SUBMIT_QUEUE_REGEX = /https:\/\/api\.emergent\.sh\/jobs\/v0\/submit-queue\/$/;
+  const COMPAS_ENDPOINT_REGEX = /https:\/\/api\.compasai\.com\/api\/chat\/ai_chat\/?$/;
   
   function shouldInterceptChatGPT(input, init) {
     try {
@@ -81,6 +82,14 @@
     } catch (_) { return false; }
   }
 
+  function shouldInterceptCompas(input, init) {
+    try {
+      const url = extractUrl(input, init);
+      const should = typeof url === 'string' && COMPAS_ENDPOINT_REGEX.test(url);
+      return should;
+    } catch (_) { return false; }
+  }
+
   function shouldInterceptI10x(input, init) {
     try {
       const url = extractUrl(input, init);
@@ -112,7 +121,7 @@
   }
 
   function shouldIntercept(input, init) {
-    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init) || shouldInterceptPerplexity(input, init) || shouldInterceptBolt(input, init) || shouldInterceptDeepSeek(input, init) || shouldInterceptI10x(input, init) || shouldInterceptEmergent(input, init);
+    return shouldInterceptChatGPT(input, init) || shouldInterceptClaude(input, init) || shouldInterceptGemini(input, init) || shouldInterceptV0(input, init) || shouldInterceptLovable(input, init) || shouldInterceptPerplexity(input, init) || shouldInterceptBolt(input, init) || shouldInterceptDeepSeek(input, init) || shouldInterceptI10x(input, init) || shouldInterceptCompas(input, init) || shouldInterceptEmergent(input, init);
   }
 
   function handleSSEIfApplicable(response, url) {
@@ -208,6 +217,9 @@
         } else if (url && (EMERGENT_HITL_QUEUE_REGEX.test(url) || EMERGENT_SUBMIT_QUEUE_REGEX.test(url))) {
           // Emergent AI format
           userText = payload?.payload?.task || payload?.task || '';
+        } else if (url && COMPAS_ENDPOINT_REGEX.test(url)) {
+          // Compas AI format
+          userText = payload?.data?.topic || payload?.message || payload?.data?.message || '';
         }
       }
       
@@ -327,6 +339,10 @@
               // Task is at top level
               payload.task = enriched;
             }
+          } else if (url && COMPAS_ENDPOINT_REGEX.test(url)) {
+            // Compas AI format
+            try { if (payload.data && typeof payload.data === 'object') { payload.data.topic = enriched; } } catch (_) { }
+            payload.message = enriched;
           }
           
           return JSON.stringify(payload);

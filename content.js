@@ -115,6 +115,10 @@ document.addEventListener("keydown", async (e) => {
   if (window.location.hostname.includes('app.emergent.sh')) {
     return; // Let the natural flow continue
   }
+  // For Compas AI (agt.compasai.com), let inpage handle interception
+  if (window.location.hostname.includes('agt.compasai.com')) {
+    return; // Let the natural flow continue
+  }
 
     if (alchemystInjectionInProgress) {
       // Allow the natural submit after we've injected once
@@ -410,6 +414,20 @@ setInterval(() => {
         } else {
           return;
         }
+      } else if (windowUrl.includes('agt.compasai.com')) {
+        // Compas AI (AGT): Insert in the bottom toolbar row beside controls
+        const toolbarRow = document.querySelector('.flex.flex-wrap.items-center.border-t') ||
+                           document.querySelector('[class*="flex-wrap"][class*="items-center"][class*="border-t"]');
+        if (toolbarRow) {
+          parentFlex = toolbarRow;
+          target = toolbarRow.firstElementChild;
+        } else {
+          const altRow = document.querySelector('.flex.flex-row.items-center.justify-between') ||
+                         document.querySelector('[class*="items-center"][class*="justify-between"]');
+          if (!altRow) return;
+          parentFlex = altRow;
+          target = altRow.firstElementChild;
+        }
       }
 
       if (!parentFlex) return;
@@ -502,6 +520,13 @@ setInterval(() => {
           const isEnabled = wrapper.getAttribute('data-memory-enabled') === 'true';
           wrapper.style.background = 'rgba(255, 255, 255, 0.08)';
         });
+      }
+      // Compas AI styling
+      if (windowUrl.includes('agt.compasai.com')) {
+        wrapper.style.border = 'none';
+        wrapper.style.background = 'transparent';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.marginRight = '8px';
       }
       // Load initial state
       const isEnabled = localStorage.getItem(MEMORY_STATE_KEY) === 'true';
@@ -711,6 +736,15 @@ setInterval(() => {
           if (parentFlex) {
             // Append to the end of the left group to make it the last element
             parentFlex.appendChild(wrapper);
+          }
+        } catch (e) { }
+      } else if (windowUrl.includes('agt.compasai.com')) {
+        // Compas AI: Insert at start of toolbar row
+        try {
+          if (target && target !== parentFlex) {
+            parentFlex.insertBefore(wrapper, target);
+          } else {
+            parentFlex.insertBefore(wrapper, parentFlex.firstChild);
           }
         } catch (e) { }
       }

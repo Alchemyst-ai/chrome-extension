@@ -9,7 +9,7 @@
   "short_name": "Alchemyst AI",
   "homepage_url": "https://platform.getalchemystai.com",
   "name": "Alchemyst - AI context, AI memory everywhere",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Carry your context and memory with you while using AI tools using Alchemyst AI.",
   "permissions": [
     "storage",
@@ -30,7 +30,8 @@
     "https://chat.deepseek.com/*",
     "https://i10x.ai/*",
     "https://app.emergent.sh/*",
-    "https://platform-backend.getalchemystai.com/*"
+    "https://platform-backend.getalchemystai.com/*",
+    "https://agt.compasai.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -49,7 +50,8 @@
         "https://manus.im/*",
         "https://chat.deepseek.com/*",
         "https://i10x.ai/*",
-        "https://app.emergent.sh/*"
+        "https://app.emergent.sh/*",
+        "https://agt.compasai.com/*"
       ],
       "js": [
         "content.js"
@@ -76,7 +78,8 @@
         "https://manus.im/*",
         "https://chat.deepseek.com/*",
         "https://i10x.ai/*",
-        "https://app.emergent.sh/*"
+        "https://app.emergent.sh/*",
+        "https://agt.compasai.com/*"
       ]
     }
   ],
