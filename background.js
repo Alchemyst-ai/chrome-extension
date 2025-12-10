@@ -247,7 +247,9 @@ chrome.runtime.onConnect.addListener((port) => {
 
         const data = await res.json();
         console.log("[Port] API Response received:", {
+          statusText: data?.statusText,
           contextCount: data?.contexts?.length,
+          hasContexts: Array.isArray(data?.contexts) && data.contexts.length > 0,
         });
 
         const contexts = Array.isArray(data?.contexts) ? data.contexts : [];
@@ -261,7 +263,8 @@ chrome.runtime.onConnect.addListener((port) => {
         console.log("[Port] Processed contexts:", {
           totalContexts: contexts.length,
           topContentsLength: topContents.length,
-          topContents: topContents
+          topContentsPreview: topContents.substring(0, 100),
+          isEmpty: topContents.length === 0
         });
         console.log("[Port] Sending response for message:", msg.id);
         if (!isDisconnected) {

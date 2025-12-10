@@ -29,6 +29,7 @@
     "https://manus.im/*",
     "https://chat.deepseek.com/*",
     "https://i10x.ai/*",
+    "https://app.emergent.sh/*",
     "https://platform-backend.getalchemystai.com/*",
     "https://agt.compasai.com/*"
   ],
@@ -49,6 +50,7 @@
         "https://manus.im/*",
         "https://chat.deepseek.com/*",
         "https://i10x.ai/*",
+        "https://app.emergent.sh/*",
         "https://agt.compasai.com/*"
       ],
       "js": [
@@ -76,6 +78,7 @@
         "https://manus.im/*",
         "https://chat.deepseek.com/*",
         "https://i10x.ai/*",
+        "https://app.emergent.sh/*",
         "https://agt.compasai.com/*"
       ]
     }
