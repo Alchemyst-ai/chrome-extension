@@ -194,9 +194,10 @@ setInterval(() => {
     try {
       // Check which platform we're on
       const windowUrl = window.location.hostname;
-
       let target, parentFlex;
-
+      let referenceNode = null; 
+      let parentContainer = null;
+      
       if (windowUrl.includes('gemini.google.com')) {
         // Gemini: Insert in the leading-actions-wrapper container
         const toolboxContainer = document.querySelector('.leading-actions-wrapper');
@@ -228,12 +229,24 @@ setInterval(() => {
             return;
           }
         }
-      } else if (windowUrl.includes('claude.ai')) {
-        // Claude.ai: Insert in the buttons container (with plus and tools buttons)
-        const buttonsContainer = document.querySelector(CLAUDE_BUTTONS_CONTAINER);
-        if (!buttonsContainer) return;
-        target = buttonsContainer;
-        parentFlex = buttonsContainer;
+      } if (windowUrl.includes('claude.ai')) {
+        const editor = document.querySelector('[contenteditable="true"]');
+        
+        if (editor) {
+          let container = editor.parentElement; 
+          while (container && container.tagName !== 'FIELDSET' && !container.querySelector('button')) {
+             container = container.parentElement;
+             if (!container || container === document.body) break; // Safety break
+          }
+
+          if (container) {
+            const existingButton = container.querySelector('button');
+            if (existingButton) {
+               parentFlex = existingButton.parentElement;
+               target = parentFlex.firstElementChild; 
+            }
+          }
+        }
       } else if (windowUrl.includes('v0.app')) {
         // v0: Insert in the right toolbar (ml-auto flex items-center gap-0.5 sm:gap-1)
         const rightToolbar = document.querySelector('.ml-auto.flex.items-center.gap-0\\.5') ||
@@ -290,13 +303,24 @@ setInterval(() => {
         parentFlex = leftGroup || row;
         target = (leftGroup && leftGroup.firstElementChild) || row.firstElementChild;
       } else if (windowUrl.includes('perplexity.ai')) {
-        // Perplexity: Only inject next to the sources-switcher-button
-        const sourcesButton = document.querySelector('[data-testid="sources-switcher-button"]');
-        if (sourcesButton) {
-          target = sourcesButton;
-          parentFlex = sourcesButton.parentElement;
-        } else {
-          return;
+        const textarea = document.querySelector('textarea');
+        if (textarea) {
+           const wrapper = textarea.closest('div.relative');
+           if (wrapper) {
+              let toolbar = wrapper.nextElementSibling;
+              
+              if (!toolbar) {
+                 toolbar = wrapper.querySelector('div.flex.justify-between');
+              }
+
+              if (toolbar) {
+                 const leftGroup = toolbar.firstElementChild;
+                 if (leftGroup) {
+                    parentContainer = leftGroup;
+                    referenceNode = leftGroup.firstElementChild;
+                 }
+              }
+           }
         }
       } else if (windowUrl.includes('manus.im')) {
         // Manus: Insert in the left button section (flex gap-2 items-center flex-shrink-0)
@@ -686,25 +710,24 @@ setInterval(() => {
           }
         } catch (e) { }
       } else if (windowUrl.includes('perplexity.ai')) {
-        // Perplexity: insert a DIV as a sibling to the <span> that contains the sources button
-        try {
-          const sourcesButton = document.querySelector('[data-testid="sources-switcher-button"]');
-          if (sourcesButton && parentFlex) {
-            const spanContainer = sourcesButton.closest('span') || parentFlex;
-            const rowContainer = spanContainer && spanContainer.parentElement ? spanContainer.parentElement : parentFlex;
-            if (!rowContainer) return;
-
-            const divContainer = document.createElement('div');
-            divContainer.style.display = 'inline-flex';
-            divContainer.style.alignItems = 'center';
-            divContainer.style.justifyContent = 'center';
-            divContainer.style.verticalAlign = 'middle';
-            divContainer.appendChild(wrapper);
-
-            // Insert our div as a sibling before the span containing the sources button
-            rowContainer.insertBefore(divContainer, spanContainer);
+        // Look for the Attach button
+        const attachButton = document.querySelector('button[aria-label="Attach"]') || 
+                             document.querySelector('button[data-testid="attach-button"]');
+        
+        if (attachButton) {
+          // Perplexity wraps buttons in spans or divs. We want the main flex row.
+          // We go up to the flex container, then find the element that contains our button
+          const flexRow = attachButton.closest('div.flex.items-center');
+          if (flexRow) {
+             parentContainer = flexRow;
+             // We want to be the VERY FIRST item in this row
+             referenceNode = flexRow.firstElementChild;
+          } else {
+             // Fallback: Just insert directly before the button if we can't find the row
+             parentContainer = attachButton.parentElement;
+             referenceNode = attachButton;
           }
-        } catch (e) { }
+        } 
       } else if (windowUrl.includes('manus.im')) {
         // Manus: Append to the left button section
         try {
@@ -999,5 +1022,4 @@ const pendingRequests = new Map();
     }
   });
 })();
-
 
