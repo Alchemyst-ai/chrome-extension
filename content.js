@@ -197,7 +197,6 @@ setInterval(() => {
       let target, parentFlex;
       let referenceNode = null; 
       let parentContainer = null;
-      
       if (windowUrl.includes('gemini.google.com')) {
         // Gemini: Insert in the leading-actions-wrapper container
         const toolboxContainer = document.querySelector('.leading-actions-wrapper');
@@ -344,22 +343,59 @@ setInterval(() => {
           return;
         }
       } else if (windowUrl.includes('i10x.ai')) {
-        // i10x.ai: Insert beside the Send button within the composer block (not header)
-        // Find the composer container via the textarea[name="input"]
-        const textarea = document.querySelector('textarea[name="input"]');
-        const composer = textarea ? textarea.parentElement : null; // the rounded-lg border p-3 container
-        if (!composer) return;
-        const toolbarRow = composer.querySelector('.flex.justify-between') ||
-                           composer.querySelector('[class*="flex"][class*="justify-between"]');
-        if (!toolbarRow) return;
 
-        // Find the actual Send button and insert our icon as its sibling
-        const sendIcon = toolbarRow.querySelector('.lucide-send-horizontal');
-        const sendButton = sendIcon ? sendIcon.closest('button') : null;
-        if (!sendButton || !sendButton.parentElement) return;
+      function deepQuery(selector, root = document) {
+        const nodes = [];
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null, false);
+
+        while (walker.nextNode()) {
+          const el = walker.currentNode;
+
+          if (el.matches && el.matches(selector)) {
+            return el;
+          }
+
+          if (el.shadowRoot) {
+            const res = deepQuery(selector, el.shadowRoot);
+            if (res) return res;
+          }
+        }
+        return null;
+      }
+
+      let textarea =
+        deepQuery('textarea[name="input"]') ||
+        deepQuery('textarea') ||
+        deepQuery('[contenteditable="true"]');
+
+      if (!textarea) return;
+
+      let composer = textarea.closest('form') ||
+                    textarea.closest('div') ||
+                    textarea.parentElement;
+
+      if (!composer) return;
+
+      let toolbarRow =
+        composer.querySelector('.flex.justify-between') ||
+        composer.querySelector('[class*="justify-between"]') ||
+        composer.querySelector('[class*="items-center"]') ||
+        composer;
+
+      let sendButton =
+        toolbarRow.querySelector('button[type="submit"]') ||
+        toolbarRow.querySelector('button[data-testid*="send" i]') ||
+        toolbarRow.querySelector('button:has(svg)') ||
+        toolbarRow.querySelector('button');
+
+      if (!sendButton || !sendButton.parentElement) {
+        parentFlex = toolbarRow;
+        target = null;
+      } else {
         parentFlex = sendButton.parentElement;
-        target = sendButton; // place our wrapper before the send button
-      } else if (windowUrl.includes('app.emergent.sh')) {
+        target = sendButton;
+      }
+    } else if (windowUrl.includes('app.emergent.sh')) {
         // Emergent: Insert in the button toolbar, in the left group with other action buttons
         // Strategy: Find textarea -> form -> buttons container -> left group
         // Works for all Emergent pages (chat, running agent, main task page, etc.)
@@ -710,25 +746,85 @@ setInterval(() => {
           }
         } catch (e) { }
       } else if (windowUrl.includes('perplexity.ai')) {
-        // Look for the Attach button
-        const attachButton = document.querySelector('button[aria-label="Attach"]') || 
-                             document.querySelector('button[data-testid="attach-button"]');
-        
-        if (attachButton) {
-          // Perplexity wraps buttons in spans or divs. We want the main flex row.
-          // We go up to the flex container, then find the element that contains our button
-          const flexRow = attachButton.closest('div.flex.items-center');
-          if (flexRow) {
-             parentContainer = flexRow;
-             // We want to be the VERY FIRST item in this row
-             referenceNode = flexRow.firstElementChild;
-          } else {
-             // Fallback: Just insert directly before the button if we can't find the row
-             parentContainer = attachButton.parentElement;
-             referenceNode = attachButton;
+
+      console.log("[Alchemyst] Perplexity injector running…");
+
+      // -------- deep shadow DOM scanner ----------
+      function deepFind(testFn, root = document) {
+        const stack = [root];
+
+        while (stack.length) {
+          const node = stack.pop();
+          if (!node) continue;
+
+          if (testFn(node)) return node;
+
+          // children
+          if (node.children) {
+            for (const c of node.children) stack.push(c);
           }
-        } 
-      } else if (windowUrl.includes('manus.im')) {
+          // shadow root
+          if (node.shadowRoot) stack.push(node.shadowRoot);
+        }
+
+        return null;
+      }
+
+      // -------- locate input/editor --------
+      const input = deepFind(el =>
+        el.tagName === "TEXTAREA" ||
+        el.getAttribute?.("contenteditable") === "true" ||
+        el.getAttribute?.("role") === "textbox"
+      );
+
+      if (!input) {
+        console.log("[Alchemyst] No input/editor found.");
+        return;
+      }
+
+      console.log("[Alchemyst] Found input:", input);
+
+      // -------- climb upward to composer --------
+      let composer = input.closest("form")
+        || input.closest("section")
+        || deepFind(el => el.id?.includes("composer") || el.dataset?.testid?.includes?.("composer"));
+
+      if (!composer) {
+        composer = input.parentElement;
+      }
+
+      if (!composer) {
+        console.log("[Alchemyst] No composer container found.");
+        return;
+      }
+
+      console.log("[Alchemyst] Composer:", composer);
+
+      // -------- find toolbar or button row --------
+      let toolbar = deepFind(el =>
+        el.tagName === "DIV" &&
+        getComputedStyle(el).display.includes("flex") &&
+        el.querySelector?.("button")
+      , composer) || composer;
+
+      console.log("[Alchemyst] Toolbar:", toolbar);
+
+      // -------- find send button robustly --------
+      let sendButton =
+        toolbar.querySelector('button[type="submit"]') ||
+        toolbar.querySelector('button[data-testid*="send" i]') ||
+        deepFind(el => el.tagName === "BUTTON" && el.querySelector?.("svg"), toolbar);
+
+      if (sendButton?.parentElement) {
+        parentFlex = sendButton.parentElement;
+        target = sendButton;
+        console.log("[Alchemyst] Will inject before send button");
+      } else {
+        parentFlex = toolbar;
+        target = toolbar.firstElementChild;
+        console.log("[Alchemyst] Will inject at toolbar beginning (fallback)");
+      }
+    } else if (windowUrl.includes('manus.im')) {
         // Manus: Append to the left button section
         try {
           if (parentFlex) {
