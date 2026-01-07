@@ -291,12 +291,6 @@ document.getElementById("saveContext").addEventListener("click", async () => {
             }).catch(err => {
               console.error('[Save Context] Failed to show success indicator:', err);
             });
-
-            // Also show success indicator in popup as fallback
-            setTimeout(() => {
-              console.log('[Save Context] Showing success indicator in popup');
-              showSuccessIndicator();
-            }, 100);
           } else {
             showStatus(`Failed to save context: ${response.error || 'Unknown error'}`, 'error');
             setSavingState(false);
@@ -505,7 +499,7 @@ async function scrapeConversation() {
       return { memoryId, contents };
     }
 
-    
+
 
     // Claude.ai branch: different DOM
     if (window.location.hostname.includes('claude.ai')) {
@@ -624,18 +618,18 @@ async function scrapeConversation() {
       console.log('[Scraper] Using v0 selectors');
       const messages = Array.from(document.querySelectorAll('[data-testid="message"]'));
       console.log('[Scraper] Found v0 messages:', messages.length);
-      
+
       messages.forEach((message, idx) => {
         const messageId = message.id || `v0-msg-${idx}-${Date.now()}`;
-        
+
         // Determine role based on CSS classes
         const isUser = message.classList.contains('origin-right') && message.classList.contains('items-end');
         const role = isUser ? 'user' : 'assistant';
-        
+
         // Extract text content from prose elements
         const proseElements = message.querySelectorAll('.prose p, .prose li, .prose code, .prose pre');
         let contentText = '';
-        
+
         proseElements.forEach((el) => {
           const text = (el.textContent || '').trim();
           if (text) {
@@ -643,13 +637,13 @@ async function scrapeConversation() {
             contentText += text;
           }
         });
-        
+
         // Fallback: get all text from the message if no prose elements found
         if (!contentText) {
           const fallback = (message.textContent || '').trim();
           if (fallback) contentText = fallback;
         }
-        
+
         if (contentText) {
           const prefixed = `[${role}] ${contentText}`;
           contents.push({
@@ -659,7 +653,7 @@ async function scrapeConversation() {
           if (idx < 2) console.log('[Scraper] v0 added', { role, length: contentText.length });
         }
       });
-      
+
       console.log('[Scraper] v0 done', { count: contents.length });
       console.timeEnd('[Scraper] total');
       return { memoryId, contents };
@@ -754,21 +748,21 @@ async function scrapeConversation() {
     // Perplexity.ai branch: different DOM structure
     if (window.location.hostname.includes('perplexity.ai')) {
       console.log('[Scraper] Processing Perplexity conversation');
-      
+
       // Look for message containers - Perplexity uses different selectors
       const messageContainers = document.querySelectorAll('[data-testid*="message"], .group, .flex.flex-col.pb-2');
       console.log('[Scraper] Found Perplexity message containers:', messageContainers.length);
 
       messageContainers.forEach((container, idx) => {
         const msgId = container.getAttribute('data-testid') || container.id || `perplexity-${idx}-${Date.now()}`;
-        
+
         // Determine role by looking for user/assistant indicators
         let role = 'assistant';
-        const isUserMessage = container.querySelector('[data-testid*="user"]') || 
-                             container.classList.contains('items-end') ||
-                             container.querySelector('.justify-end') ||
-                             container.querySelector('[class*="user"]');
-        
+        const isUserMessage = container.querySelector('[data-testid*="user"]') ||
+          container.classList.contains('items-end') ||
+          container.querySelector('.justify-end') ||
+          container.querySelector('[class*="user"]');
+
         if (isUserMessage) {
           role = 'user';
         }
@@ -859,13 +853,13 @@ async function scrapeConversation() {
 
       messageGroups.forEach((group, idx) => {
         const eventId = group.getAttribute('data-event-id') || `manus-${idx}-${Date.now()}`;
-        
+
         // Determine role: user messages are in flex-col items-end containers
         let role = 'assistant';
         const isUserMessage = group.querySelector('.flex.flex-col.items-end') ||
-                             group.classList.contains('items-end') ||
-                             group.querySelector('[class*="items-end"]');
-        
+          group.classList.contains('items-end') ||
+          group.querySelector('[class*="items-end"]');
+
         if (isUserMessage) {
           role = 'user';
         }
@@ -873,38 +867,38 @@ async function scrapeConversation() {
         // Extract text content from the message bubble
         // User messages: .rounded-\[12px\] with text content
         // Assistant messages: similar structure
-        const messageBubble = group.querySelector('.rounded-\\[12px\\]') || 
-                             group.querySelector('[class*="rounded"]') ||
-                             group.querySelector('.relative.flex.items-center');
-        
+        const messageBubble = group.querySelector('.rounded-\\[12px\\]') ||
+          group.querySelector('[class*="rounded"]') ||
+          group.querySelector('.relative.flex.items-center');
+
         let contentText = '';
-        
+
         if (messageBubble) {
           // Try to get text from span with u-break-words or similar
           const textSpan = messageBubble.querySelector('.u-break-words') ||
-                          messageBubble.querySelector('[class*="break-words"]') ||
-                          messageBubble.querySelector('span');
-          
+            messageBubble.querySelector('[class*="break-words"]') ||
+            messageBubble.querySelector('span');
+
           if (textSpan) {
             contentText = (textSpan.textContent || '').trim();
           }
-          
+
           // Fallback: get all text from bubble
           if (!contentText) {
             contentText = (messageBubble.textContent || '').trim();
           }
         }
-        
+
         // If still no content, try the whole group
         if (!contentText) {
           contentText = (group.textContent || '').trim();
         }
 
         // Filter out empty messages and UI elements
-        if (contentText && contentText.length > 3 && 
-            !contentText.includes('Friday') && 
-            !contentText.includes('Copy') &&
-            !contentText.includes('Save')) {
+        if (contentText && contentText.length > 3 &&
+          !contentText.includes('Friday') &&
+          !contentText.includes('Copy') &&
+          !contentText.includes('Save')) {
           contents.push({
             content: `[${role}] ${contentText}`,
             metadata: { source: memoryId, messageId: eventId }
@@ -928,15 +922,15 @@ async function scrapeConversation() {
 
       userMessages.forEach((container, idx) => {
         const msgId = container.getAttribute('data-um-id') || `deepseek-user-${idx}-${Date.now()}`;
-        
+
         // User message content is in .fbb737a4
         const contentDiv = container.querySelector('.fbb737a4');
         let contentText = '';
-        
+
         if (contentDiv) {
           contentText = (contentDiv.textContent || '').trim();
         }
-        
+
         // Fallback: get text from message bubble
         if (!contentText) {
           const messageBubble = container.querySelector('.ds-message');
@@ -960,11 +954,11 @@ async function scrapeConversation() {
 
       assistantMessages.forEach((container, idx) => {
         const msgId = container.id || `deepseek-assistant-${idx}-${Date.now()}`;
-        
+
         // Assistant message content is in .ds-markdown
         const markdownDiv = container.querySelector('.ds-markdown');
         let contentText = '';
-        
+
         if (markdownDiv) {
           // Extract text from paragraphs
           const paragraphs = markdownDiv.querySelectorAll('p.ds-markdown-paragraph, p');
@@ -975,13 +969,13 @@ async function scrapeConversation() {
               contentText += text;
             }
           });
-          
+
           // Fallback: get all text from markdown div
           if (!contentText) {
             contentText = (markdownDiv.textContent || '').trim();
           }
         }
-        
+
         // Fallback: get text from message bubble
         if (!contentText) {
           const messageBubble = container.querySelector('.ds-message');
@@ -991,10 +985,10 @@ async function scrapeConversation() {
         }
 
         // Filter out UI button text
-        if (contentText && contentText.length > 0 && 
-            !contentText.includes('Copy') &&
-            !contentText.includes('Regenerate') &&
-            !contentText.includes('Thumbs')) {
+        if (contentText && contentText.length > 0 &&
+          !contentText.includes('Copy') &&
+          !contentText.includes('Regenerate') &&
+          !contentText.includes('Thumbs')) {
           contents.push({
             content: `[assistant] ${contentText}`,
             metadata: { source: memoryId, messageId: msgId }
