@@ -35,7 +35,7 @@ chrome.runtime.onConnect.addListener((port) => {
     console.log("[Port Message Received]:", msg?.type, "query:", msg?.query, "id:", msg?.id);
 
     if (msg?.type === "addMemory") {
-      console.log('[addMemory] Received', { id: msg?.id, memoryId: msg?.memoryId, count: Array.isArray(msg?.contents) ? msg.contents.length : 'not-array' });
+      console.log('[addMemory] Received', { id: msg?.id, sessionId: msg?.sessionId, count: Array.isArray(msg?.contents) ? msg.contents.length : 'not-array' });
       try {
         const { alchemystApiKey } = await chrome.storage.local.get("alchemystApiKey");
         if (!alchemystApiKey) {
@@ -48,10 +48,10 @@ chrome.runtime.onConnect.addListener((port) => {
         }
 
         const payload = {
-          memoryId: msg.memoryId,
+          sessionId: msg.sessionId,
           contents: Array.isArray(msg.contents) ? msg.contents : [],
         };
-        console.log('[addMemory] Payload preview', { memoryId: payload.memoryId, count: payload.contents.length, first: payload.contents[0] });
+        console.log('[addMemory] Payload preview', { sessionId: payload.sessionId, count: payload.contents.length, first: payload.contents[0] });
 
         const attempt = async (triesLeft, delayMs) => {
           console.log(`[addMemory] Attempt ${4 - triesLeft}/3, delayMs=${delayMs}`);

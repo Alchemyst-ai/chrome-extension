@@ -257,8 +257,8 @@ document.getElementById("saveContext").addEventListener("click", async () => {
     console.log('[Save Context] Raw results:', results);
 
     if (results && results[0] && results[0].result) {
-      const { memoryId, contents } = results[0].result;
-      console.log('[Save Context] Extracted memoryId:', memoryId);
+      const { sessionId, contents } = results[0].result;
+      console.log('[Save Context] Extracted sessionId:', sessionId);
       console.log('[Save Context] Contents count:', Array.isArray(contents) ? contents.length : 'not-array');
       if (Array.isArray(contents)) console.log('[Save Context] First item sample:', contents[0]);
 
@@ -272,7 +272,7 @@ document.getElementById("saveContext").addEventListener("click", async () => {
 
       const port = chrome.runtime.connect({ name: "alchemyst" });
       const messageId = Date.now() + Math.random();
-      console.log('[Save Context] Posting addMemory via port', { messageId, memoryId, count: contents.length });
+      console.log('[Save Context] Posting addMemory via port', { messageId, sessionId, count: contents.length });
 
       port.onMessage.addListener((response) => {
         if (response.id === messageId) {
@@ -315,7 +315,7 @@ document.getElementById("saveContext").addEventListener("click", async () => {
       port.postMessage({
         type: "addMemory",
         id: messageId,
-        memoryId: memoryId,
+        sessionId: sessionId,
         contents: contents
       });
       console.log('[Save Context] addMemory posted');
@@ -355,7 +355,7 @@ async function scrapeConversation() {
     console.time('[Scraper] total');
     const url = window.location.href;
     console.log('[Scraper] URL:', url);
-    let memoryId = '';
+    let sessionId = '';
 
     const chatgptMatch = url.match(/\/c\/([a-f0-9-]+)/);
     const claudeMatch = url.match(/\/chat\/([a-f0-9-]+)/);
@@ -372,36 +372,36 @@ async function scrapeConversation() {
 
     // Check more specific patterns first (with domain) before generic /app/ patterns
     if (chatgptMatch) {
-      memoryId = chatgptMatch[1];
+      sessionId = chatgptMatch[1];
     } else if (claudeMatch) {
-      memoryId = claudeMatch[1];
+      sessionId = claudeMatch[1];
     } else if (manusMatch) {
-      memoryId = manusMatch[1];
+      sessionId = manusMatch[1];
     } else if (deepseekMatch) {
-      memoryId = deepseekMatch[1];
+      sessionId = deepseekMatch[1];
     } else if (lovableMatch) {
-      memoryId = lovableMatch[1];
+      sessionId = lovableMatch[1];
     } else if (perplexityMatch) {
-      memoryId = perplexityMatch[1];
+      sessionId = perplexityMatch[1];
     } else if (boltMatch) {
-      memoryId = boltMatch[1];
+      sessionId = boltMatch[1];
     } else if (geminiMatch) {
-      memoryId = geminiMatch[1];
+      sessionId = geminiMatch[1];
     } else if (v0Match) {
-      memoryId = v0Match[1];
+      sessionId = v0Match[1];
     } else if (i10xMatch) {
-      memoryId = i10xMatch[1];
+      sessionId = i10xMatch[1];
     } else if (emergentMatch) {
-      memoryId = emergentMatch[1] || 'emergent';
+      sessionId = emergentMatch[1] || 'emergent';
     } else {
-      memoryId = 'unknown-' + Date.now();
+      sessionId = 'unknown-' + Date.now();
     }
     const contents = [];
     // Emergent AI branch
     if (window.location.hostname.includes('app.emergent.sh')) {
       console.log('[Scraper] Processing Emergent conversation');
 
-      memoryId = `emergent-${Date.now()}`;
+      sessionId = `emergent-${Date.now()}`;
 
       const listRoot = document.querySelector('[data-testid="virtuoso-item-list"]') || document;
       const itemNodes = Array.from(listRoot.querySelectorAll('[data-item-index]'));
@@ -448,14 +448,14 @@ async function scrapeConversation() {
         if (contentText && contentText.trim().length > 0) {
           contents.push({
             content: `[${role}] ${contentText}`,
-            metadata: { source: memoryId, messageId }
+            metadata: { source: sessionId, messageId }
           });
         }
       });
 
       console.log('[Scraper] Emergent done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
     // i10x.ai branch
     if (window.location.hostname.includes('i10x.ai')) {
@@ -478,7 +478,7 @@ async function scrapeConversation() {
         if (!contentText) contentText = (bubble.textContent || '').trim();
         // Filter UI noise
         if (contentText && contentText.length > 3 && !/Copy|Model Used|Show More/i.test(contentText)) {
-          contents.push({ content: `[user] ${contentText}`, metadata: { source: memoryId, messageId: msgId } });
+          contents.push({ content: `[user] ${contentText}`, metadata: { source: sessionId, messageId: msgId } });
         }
       });
 
@@ -496,13 +496,13 @@ async function scrapeConversation() {
         });
         if (!contentText) contentText = (blk.textContent || '').trim();
         if (contentText && contentText.length > 3) {
-          contents.push({ content: `[assistant] ${contentText}`, metadata: { source: memoryId, messageId: msgId } });
+          contents.push({ content: `[assistant] ${contentText}`, metadata: { source: sessionId, messageId: msgId } });
         }
       });
 
       console.log('[Scraper] i10x done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     
@@ -533,14 +533,14 @@ async function scrapeConversation() {
           const prefixed = `[${role}] ${contentText}`;
           contents.push({
             content: prefixed,
-            metadata: { source: memoryId, messageId }
+            metadata: { source: sessionId, messageId }
           });
           if (idx < 2) console.log('[Scraper] Claude added', { role, length: contentText.length });
         }
       });
       console.log('[Scraper] Claude done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // Gemini branch: different DOM structure
@@ -573,7 +573,7 @@ async function scrapeConversation() {
             const prefixed = `[user] ${contentText}`;
             contents.push({
               content: prefixed,
-              metadata: { source: memoryId, messageId }
+              metadata: { source: sessionId, messageId }
             });
             if (queryIdx < 2) console.log('[Scraper] Gemini user query added', { length: contentText.length });
           }
@@ -606,7 +606,7 @@ async function scrapeConversation() {
               const prefixed = `[assistant] ${contentText}`;
               contents.push({
                 content: prefixed,
-                metadata: { source: memoryId, messageId }
+                metadata: { source: sessionId, messageId }
               });
               if (responseIdx < 2) console.log('[Scraper] Gemini assistant response added', { length: contentText.length });
             }
@@ -616,7 +616,7 @@ async function scrapeConversation() {
 
       console.log('[Scraper] Gemini done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // v0.app branch: different DOM structure
@@ -654,7 +654,7 @@ async function scrapeConversation() {
           const prefixed = `[${role}] ${contentText}`;
           contents.push({
             content: prefixed,
-            metadata: { source: memoryId, messageId }
+            metadata: { source: sessionId, messageId }
           });
           if (idx < 2) console.log('[Scraper] v0 added', { role, length: contentText.length });
         }
@@ -662,7 +662,7 @@ async function scrapeConversation() {
       
       console.log('[Scraper] v0 done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // Lovable branch
@@ -742,13 +742,13 @@ async function scrapeConversation() {
         if (contentText) {
           contents.push({
             content: `[${role}] ${contentText}`,
-            metadata: { source: memoryId, messageId: msgId }
+            metadata: { source: sessionId, messageId: msgId }
           });
         }
       });
       console.log('[Scraper] Lovable done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // Perplexity.ai branch: different DOM structure
@@ -796,14 +796,14 @@ async function scrapeConversation() {
         if (contentText && contentText.length > 10) { // Filter out very short content
           contents.push({
             content: `[${role}] ${contentText}`,
-            metadata: { source: memoryId, messageId: msgId }
+            metadata: { source: sessionId, messageId: msgId }
           });
         }
       });
 
       console.log('[Scraper] Perplexity done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // Bolt branch
@@ -840,13 +840,13 @@ async function scrapeConversation() {
           if (fallback) contentText = fallback;
         }
         if (contentText) {
-          contents.push({ content: `[${role}] ${contentText}`, metadata: { source: memoryId, messageId: msgId } });
+          contents.push({ content: `[${role}] ${contentText}`, metadata: { source: sessionId, messageId: msgId } });
         }
       });
 
       console.log('[Scraper] Bolt done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // Manus branch
@@ -907,7 +907,7 @@ async function scrapeConversation() {
             !contentText.includes('Save')) {
           contents.push({
             content: `[${role}] ${contentText}`,
-            metadata: { source: memoryId, messageId: eventId }
+            metadata: { source: sessionId, messageId: eventId }
           });
           if (idx < 2) console.log('[Scraper] Manus added', { role, length: contentText.length });
         }
@@ -915,7 +915,7 @@ async function scrapeConversation() {
 
       console.log('[Scraper] Manus done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // DeepSeek branch
@@ -948,7 +948,7 @@ async function scrapeConversation() {
         if (contentText && contentText.length > 0) {
           contents.push({
             content: `[user] ${contentText}`,
-            metadata: { source: memoryId, messageId: msgId }
+            metadata: { source: sessionId, messageId: msgId }
           });
           if (idx < 2) console.log('[Scraper] DeepSeek user added', { length: contentText.length });
         }
@@ -997,7 +997,7 @@ async function scrapeConversation() {
             !contentText.includes('Thumbs')) {
           contents.push({
             content: `[assistant] ${contentText}`,
-            metadata: { source: memoryId, messageId: msgId }
+            metadata: { source: sessionId, messageId: msgId }
           });
           if (idx < 2) console.log('[Scraper] DeepSeek assistant added', { length: contentText.length });
         }
@@ -1005,7 +1005,7 @@ async function scrapeConversation() {
 
       console.log('[Scraper] DeepSeek done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // ChatGPT branch
@@ -1040,7 +1040,7 @@ async function scrapeConversation() {
         contents.push({
           content: prefixed,
           metadata: {
-            source: memoryId,
+            source: sessionId,
             messageId: messageId
           }
         });
@@ -1050,12 +1050,12 @@ async function scrapeConversation() {
       }
     });
 
-    console.log('[Scraper] Done', { memoryId, count: contents.length });
+    console.log('[Scraper] Done', { sessionId, count: contents.length });
     console.timeEnd('[Scraper] total');
-    return { memoryId, contents };
+    return { sessionId, contents };
   } catch (e) {
     console.error('[Scraper] Failed:', e);
-    return { memoryId: 'error-' + Date.now(), contents: [] };
+    return { sessionId: 'error-' + Date.now(), contents: [] };
   }
 }
 
