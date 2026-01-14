@@ -299,12 +299,6 @@ document.getElementById("saveContext").addEventListener("click", async () => {
             }).catch(err => {
               console.error('[Save Context] Failed to show success indicator:', err);
             });
-
-            // Also show success indicator in popup as fallback
-            setTimeout(() => {
-              console.log('[Save Context] Showing success indicator in popup');
-              showSuccessIndicator();
-            }, 100);
           } else {
             showStatus(`Failed to save context: ${response.error || 'Unknown error'}`, 'error');
             setSavingState(false);
