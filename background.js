@@ -192,6 +192,7 @@ chrome.runtime.onConnect.addListener((port) => {
           "alchemystApiKey"
         );
         const { contextKeys } = await chrome.storage.local.get("contextKeys");
+        const keysToSearch = contextKeys.length > 0 ? contextKeys : [null];
         if (!alchemystApiKey) {
           console.warn("No API key found for port connection");
           if (!isDisconnected) {
@@ -207,61 +208,70 @@ chrome.runtime.onConnect.addListener((port) => {
           return;
         }
 
+        console.log("[Port] Making API request...");
 
-        console.log("[Port] Making API request...", contextKeys);
-
-        const searchPromises = contextKeys.map(async (key) => {
-
-          const res = await fetch(
-            "https://platform-backend.getalchemystai.com/api/v1/context/search",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${alchemystApiKey}`,
-              },
-              body: JSON.stringify({
-                query: msg.query,
-                similarity_threshold: 0.8,
-                minimum_similarity_threshold: 0.5,
-                scope: "internal",
-                metadata: null,
-                magic_key: key
-              }),
-            }
-          );
-
-          if (!res.ok) {
-            const text = await res.text().catch(() => "");
-            console.error("[Port] API request failed:", {
-              status: res.status,
-              details: text,
-            });
-            if (!isDisconnected) {
-              try {
-                port.postMessage({
-                  id: msg.id,
-                  error: `HTTP ${res.status}`,
-                  details: text,
-                });
-              } catch (e) {
-                console.warn("[Port] Failed to post HTTP error (disconnected?)", e);
+        const searchPromises = keysToSearch.map(async (key) => {
+          try {
+            const payload = JSON.stringify({
+              query: msg.query,
+              similarity_threshold: 0.8,
+              minimum_similarity_threshold: 0.5,
+              scope: "internal",
+              metadata: null,
+              magic_key: key
+            })
+            console.log("Payload preview :", payload);
+            const res = await fetch(
+              "https://platform-backend.getalchemystai.com/api/v1/context/search",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${alchemystApiKey}`,
+                },
+                body: payload
               }
-            } else {
-              console.log("[Port] Skipping error response because port is disconnected", { id: msg?.id });
+            );
+
+            if (!res.ok) {
+              const text = await res.text().catch(() => "");
+              console.error("[Port] API request failed:", {
+                status: res.status,
+                details: text,
+              });
+              if (!isDisconnected) {
+                try {
+                  port.postMessage({
+                    id: msg.id,
+                    error: `HTTP ${res.status}`,
+                    details: text,
+                  });
+                } catch (e) {
+                  console.warn("[Port] Failed to post HTTP error (disconnected?)", e);
+                }
+              } else {
+                console.log("[Port] Skipping error response because port is disconnected", { id: msg?.id });
+              }
+              return;
+
             }
-            return;
+            return await res.json();
           }
-
+          catch (err) {
+            console.error("[Port] Fetch error:", err);
+            return null;
+          }
         });
+       
         const results = await Promise.all(searchPromises);
-        const validResults = results.filter(res => res !== undefined && res !== null);
-        
-        const allContexts = validResults.flatMap((res) => res.contexts || []);
+        console.log("Raw result : ", results);
+        const allContexts = results
+          .filter(Boolean)
+          .flatMap((res) => res.contexts || []);
 
-        const uniqueContexts = Array.from(
-          new Map(allContexts.map((item) => [item.id || item._id, item])).values()
-        );
+         const uniqueContexts = Array.from(
+          new Map(allContexts.map((item) => [item.content, item])).values()
+        )
 
         console.log("[Port] API Response received:", {
           totalUnique: uniqueContexts.length,
