@@ -1,3 +1,5 @@
+console.log('[Alchemyst] Content script loaded on:', window.location.hostname);
+
 let alchemystInjectionInProgress = false;
 let alchemystPort = null;
 let nextMessageId = 1;
@@ -73,11 +75,11 @@ function fetchContextViaPort(query) {
 
 document.addEventListener("keydown", async (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
-    const inputEl = document.querySelector('#prompt-textarea') || 
-                    document.querySelector('textarea') || 
-                    document.querySelector('[contenteditable="true"]') ||
-                    document.querySelector('.tiptap.ProseMirror') ||
-                    document.querySelector('[data-editor="true"]');
+    const inputEl = document.querySelector('#prompt-textarea') ||
+      document.querySelector('textarea') ||
+      document.querySelector('[contenteditable="true"]') ||
+      document.querySelector('.tiptap.ProseMirror') ||
+      document.querySelector('[data-editor="true"]');
     if (!inputEl) return;
 
     const query = getPromptText(inputEl);
@@ -88,37 +90,37 @@ document.addEventListener("keydown", async (e) => {
       if (!memoryEnabled) return;
     } catch (_) { /* ignore */ }
 
-  // For Gemini, let the inpage script handle request interception
-  // Don't interfere with the Enter key for Gemini
-  if (window.location.hostname.includes('gemini.google.com')) {
-    return; // Let the natural flow continue
-  }
-  // ChatGPT.
-  if (window.location.hostname.includes('chatgpt.com')) {
-    return;
-  }
-  // For Perplexity, let the inpage script handle request interception
-  // Don't interfere with the Enter key for Perplexity
-  if (window.location.hostname.includes('perplexity.ai')) {
-    return; // Let the natural flow continue
-  }
-  // For DeepSeek, let the inpage script handle request interception
-  // Don't interfere with the Enter key for DeepSeek
-  if (window.location.hostname.includes('chat.deepseek.com')) {
-    return; // Let the natural flow continue
-  }
-  // For i10x.ai, let the inpage script handle request interception
-  if (window.location.hostname.includes('i10x.ai')) {
-    return; // Let the natural flow continue
-  }
-  // For Emergent AI, let the inpage script handle request interception
-  if (window.location.hostname.includes('app.emergent.sh')) {
-    return; // Let the natural flow continue
-  }
-  // For Compas AI (agt.compasai.com), let inpage handle interception
-  if (window.location.hostname.includes('agt.compasai.com')) {
-    return; // Let the natural flow continue
-  }
+    // For Gemini, let the inpage script handle request interception
+    // Don't interfere with the Enter key for Gemini
+    if (window.location.hostname.includes('gemini.google.com')) {
+      return; // Let the natural flow continue
+    }
+    // ChatGPT.
+    if (window.location.hostname.includes('chatgpt.com')) {
+      return;
+    }
+    // For Perplexity, let the inpage script handle request interception
+    // Don't interfere with the Enter key for Perplexity
+    if (window.location.hostname.includes('perplexity.ai')) {
+      return; // Let the natural flow continue
+    }
+    // For DeepSeek, let the inpage script handle request interception
+    // Don't interfere with the Enter key for DeepSeek
+    if (window.location.hostname.includes('chat.deepseek.com')) {
+      return; // Let the natural flow continue
+    }
+    // For i10x.ai, let the inpage script handle request interception
+    if (window.location.hostname.includes('i10x.ai')) {
+      return; // Let the natural flow continue
+    }
+    // For Emergent AI, let the inpage script handle request interception
+    if (window.location.hostname.includes('app.emergent.sh')) {
+      return; // Let the natural flow continue
+    }
+    // For Compas AI (agt.compasai.com), let inpage handle interception
+    if (window.location.hostname.includes('agt.compasai.com')) {
+      return; // Let the natural flow continue
+    }
 
     if (alchemystInjectionInProgress) {
       // Allow the natural submit after we've injected once
@@ -153,10 +155,10 @@ document.addEventListener("keydown", async (e) => {
     }
 
     const submit = () => {
-      const btn = document.getElementById('composer-submit-button') || 
-                  document.querySelector('#composer-submit-button') ||
-                  document.querySelector('[data-testid="prompt-form-send-button"]') ||
-                  document.querySelector('button[type="submit"]');
+      const btn = document.getElementById('composer-submit-button') ||
+        document.querySelector('#composer-submit-button') ||
+        document.querySelector('[data-testid="prompt-form-send-button"]') ||
+        document.querySelector('button[type="submit"]');
       alchemystInjectionInProgress = true;
       if (btn) { btn.click(); return; }
       const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true });
@@ -194,8 +196,9 @@ setInterval(() => {
     try {
       // Check which platform we're on
       const windowUrl = window.location.hostname;
+      console.log('[Alchemyst] ensureButton called for:', windowUrl);
       let target, parentFlex;
-      let referenceNode = null; 
+      let referenceNode = null;
       let parentContainer = null;
       if (windowUrl.includes('gemini.google.com')) {
         // Gemini: Insert in the leading-actions-wrapper container
@@ -207,14 +210,14 @@ setInterval(() => {
           // Try alternative selectors for Gemini
           const alternatives = [
             '.input-area',
-            '.input-container', 
+            '.input-container',
             '[data-testid="input-area"]',
             '.composer-input',
             '.chat-input',
             'textarea[placeholder*="Enter a prompt"]',
             'textarea[aria-label*="Enter a prompt"]'
           ];
-          
+
           for (const selector of alternatives) {
             const altContainer = document.querySelector(selector);
             if (altContainer) {
@@ -223,35 +226,35 @@ setInterval(() => {
               break;
             }
           }
-          
+
           if (!target) {
             return;
           }
         }
       } if (windowUrl.includes('claude.ai')) {
         const editor = document.querySelector('[contenteditable="true"]');
-        
+
         if (editor) {
-          let container = editor.parentElement; 
+          let container = editor.parentElement;
           while (container && container.tagName !== 'FIELDSET' && !container.querySelector('button')) {
-             container = container.parentElement;
-             if (!container || container === document.body) break; // Safety break
+            container = container.parentElement;
+            if (!container || container === document.body) break; // Safety break
           }
 
           if (container) {
             const existingButton = container.querySelector('button');
             if (existingButton) {
-               parentFlex = existingButton.parentElement;
-               target = parentFlex.firstElementChild; 
+              parentFlex = existingButton.parentElement;
+              target = parentFlex.firstElementChild;
             }
           }
         }
       } else if (windowUrl.includes('v0.app')) {
         // v0: Insert in the right toolbar (ml-auto flex items-center gap-0.5 sm:gap-1)
         const rightToolbar = document.querySelector('.ml-auto.flex.items-center.gap-0\\.5') ||
-                            document.querySelector('[class*="ml-auto"][class*="flex"][class*="items-center"]') ||
-                            document.querySelector('div[class*="ml-auto"]');
-        
+          document.querySelector('[class*="ml-auto"][class*="flex"][class*="items-center"]') ||
+          document.querySelector('div[class*="ml-auto"]');
+
         if (rightToolbar) {
           // Insert in the right toolbar as the first button
           parentFlex = rightToolbar;
@@ -302,30 +305,51 @@ setInterval(() => {
         parentFlex = leftGroup || row;
         target = (leftGroup && leftGroup.firstElementChild) || row.firstElementChild;
       } else if (windowUrl.includes('perplexity.ai')) {
-        const textarea = document.querySelector('textarea');
-        if (textarea) {
-           const wrapper = textarea.closest('div.relative');
-           if (wrapper) {
-              let toolbar = wrapper.nextElementSibling;
-              
-              if (!toolbar) {
-                 toolbar = wrapper.querySelector('div.flex.justify-between');
-              }
+        // Perplexity now uses a contenteditable div instead of textarea
+        // Find the submit button and use it as anchor to locate the toolbar
+        const submitBtn = document.querySelector('button[aria-label="Submit"]') ||
+          document.querySelector('button[aria-label*="submit" i]') ||
+          document.querySelector('button[type="submit"]');
 
-              if (toolbar) {
-                 const leftGroup = toolbar.firstElementChild;
-                 if (leftGroup) {
-                    parentContainer = leftGroup;
-                    referenceNode = leftGroup.firstElementChild;
-                 }
+        if (submitBtn) {
+          // The toolbar is a flex container that holds the submit button
+          const toolbar = submitBtn.closest('.flex.items-center') ||
+            submitBtn.parentElement?.parentElement;
+
+          if (toolbar) {
+            parentFlex = toolbar;
+            // Insert before the submit button's wrapper (usually a div.ml-2)
+            target = submitBtn.closest('div.ml-2') || submitBtn.parentElement || submitBtn;
+            console.log('[Alchemyst] Found Perplexity toolbar via submit button');
+          }
+        } else {
+          // Fallback: try to find toolbar using the input area
+          const askInput = document.querySelector('#ask-input') ||
+            document.querySelector('[role="textbox"][contenteditable="true"]') ||
+            document.querySelector('textarea');
+
+          if (askInput) {
+            // Look for buttons in sibling elements
+            const gridContainer = askInput.closest('.grid.grid-cols-3') ||
+              askInput.closest('[class*="grid"]');
+
+            if (gridContainer) {
+              const rightToolbar = gridContainer.querySelector('.flex.items-center.justify-self-end') ||
+                gridContainer.querySelector('[class*="justify-self-end"][class*="flex"]');
+
+              if (rightToolbar) {
+                parentFlex = rightToolbar;
+                target = rightToolbar.firstElementChild;
+                console.log('[Alchemyst] Found Perplexity toolbar via grid container');
               }
-           }
+            }
+          }
         }
       } else if (windowUrl.includes('manus.im')) {
         // Manus: Insert in the left button section (flex gap-2 items-center flex-shrink-0)
         // Try multiple selectors to handle potential class name variations
         const leftButtonSection = document.querySelector('.flex.gap-2.items-center.flex-shrink-0') ||
-                                   document.querySelector('[class*="flex"][class*="gap-2"][class*="items-center"][class*="flex-shrink-0"]');
+          document.querySelector('[class*="flex"][class*="gap-2"][class*="items-center"][class*="flex-shrink-0"]');
         if (leftButtonSection) {
           parentFlex = leftButtonSection;
           target = leftButtonSection.lastElementChild; // Insert after the last button (cable icon)
@@ -335,7 +359,7 @@ setInterval(() => {
       } else if (windowUrl.includes('chat.deepseek.com')) {
         // DeepSeek: Insert in the button container (.ec4f5d61) alongside DeepThink and Search buttons
         const buttonContainer = document.querySelector('.ec4f5d61') ||
-                                document.querySelector('[class*="ec4f5d61"]');
+          document.querySelector('[class*="ec4f5d61"]');
         if (buttonContainer) {
           parentFlex = buttonContainer;
           target = buttonContainer.firstElementChild; // Insert before first button (DeepThink)
@@ -344,69 +368,69 @@ setInterval(() => {
         }
       } else if (windowUrl.includes('i10x.ai')) {
 
-      function deepQuery(selector, root = document) {
-        const nodes = [];
-        const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null, false);
+        function deepQuery(selector, root = document) {
+          const nodes = [];
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null, false);
 
-        while (walker.nextNode()) {
-          const el = walker.currentNode;
+          while (walker.nextNode()) {
+            const el = walker.currentNode;
 
-          if (el.matches && el.matches(selector)) {
-            return el;
+            if (el.matches && el.matches(selector)) {
+              return el;
+            }
+
+            if (el.shadowRoot) {
+              const res = deepQuery(selector, el.shadowRoot);
+              if (res) return res;
+            }
           }
-
-          if (el.shadowRoot) {
-            const res = deepQuery(selector, el.shadowRoot);
-            if (res) return res;
-          }
+          return null;
         }
-        return null;
-      }
 
-      let textarea =
-        deepQuery('textarea[name="input"]') ||
-        deepQuery('textarea') ||
-        deepQuery('[contenteditable="true"]');
+        let textarea =
+          deepQuery('textarea[name="input"]') ||
+          deepQuery('textarea') ||
+          deepQuery('[contenteditable="true"]');
 
-      if (!textarea) return;
+        if (!textarea) return;
 
-      let composer = textarea.closest('form') ||
-                    textarea.closest('div') ||
-                    textarea.parentElement;
+        let composer = textarea.closest('form') ||
+          textarea.closest('div') ||
+          textarea.parentElement;
 
-      if (!composer) return;
+        if (!composer) return;
 
-      let toolbarRow =
-        composer.querySelector('.flex.justify-between') ||
-        composer.querySelector('[class*="justify-between"]') ||
-        composer.querySelector('[class*="items-center"]') ||
-        composer;
+        let toolbarRow =
+          composer.querySelector('.flex.justify-between') ||
+          composer.querySelector('[class*="justify-between"]') ||
+          composer.querySelector('[class*="items-center"]') ||
+          composer;
 
-      let sendButton =
-        toolbarRow.querySelector('button[type="submit"]') ||
-        toolbarRow.querySelector('button[data-testid*="send" i]') ||
-        toolbarRow.querySelector('button:has(svg)') ||
-        toolbarRow.querySelector('button');
+        let sendButton =
+          toolbarRow.querySelector('button[type="submit"]') ||
+          toolbarRow.querySelector('button[data-testid*="send" i]') ||
+          toolbarRow.querySelector('button:has(svg)') ||
+          toolbarRow.querySelector('button');
 
-      if (!sendButton || !sendButton.parentElement) {
-        parentFlex = toolbarRow;
-        target = null;
-      } else {
-        parentFlex = sendButton.parentElement;
-        target = sendButton;
-      }
-    } else if (windowUrl.includes('app.emergent.sh')) {
+        if (!sendButton || !sendButton.parentElement) {
+          parentFlex = toolbarRow;
+          target = null;
+        } else {
+          parentFlex = sendButton.parentElement;
+          target = sendButton;
+        }
+      } else if (windowUrl.includes('app.emergent.sh')) {
         // Emergent: Insert in the button toolbar, in the left group with other action buttons
         // Strategy: Find textarea -> form -> buttons container -> left group
         // Works for all Emergent pages (chat, running agent, main task page, etc.)
-        
+
         // Try both textarea variants (chat page and main task page)
         let textarea = document.querySelector('[data-testid="chat-input-textarea"]') ||
-                      document.querySelector('[data-testid="main-task-input"]') ||
-                      document.querySelector('#mainTaskInput');
-        
+          document.querySelector('[data-testid="main-task-input"]') ||
+          document.querySelector('#mainTaskInput');
+
         if (!textarea) return;
-        
+
         // Find the form or parent container
         let form = textarea.closest('form');
         // If no form, find the parent container that has the buttons
@@ -417,33 +441,33 @@ setInterval(() => {
           }
         }
         if (!form) return;
-        
+
         // Find the buttons container (div with flex items-center justify-between)
         // Try multiple strategies to find it
         let buttonsContainer = Array.from(form.querySelectorAll('div')).find(div => {
-          return div.classList.contains('flex') && 
-                 div.classList.contains('items-center') && 
-                 div.classList.contains('justify-between') &&
-                 (div.querySelector('[data-testid="chat-input-submit"]') || 
-                  div.querySelector('[data-testid="main-task-submit"]') ||
-                  div.querySelector('button[type="submit"]') ||
-                  div.querySelector('img[src*="send.svg"]') ||
-                  div.querySelector('img[src*="pause.svg"]') ||
-                  div.querySelector('img[src*="submit-arrow.svg"]'));
+          return div.classList.contains('flex') &&
+            div.classList.contains('items-center') &&
+            div.classList.contains('justify-between') &&
+            (div.querySelector('[data-testid="chat-input-submit"]') ||
+              div.querySelector('[data-testid="main-task-submit"]') ||
+              div.querySelector('button[type="submit"]') ||
+              div.querySelector('img[src*="send.svg"]') ||
+              div.querySelector('img[src*="pause.svg"]') ||
+              div.querySelector('img[src*="submit-arrow.svg"]'));
         });
-        
+
         // Fallback: find by class structure even without submit button
         if (!buttonsContainer) {
           buttonsContainer = Array.from(form.querySelectorAll('div')).find(div => {
-            return div.classList.contains('flex') && 
-                   div.classList.contains('items-center') && 
-                   div.classList.contains('justify-between') &&
-                   (div.classList.contains('p-2.5') || div.classList.contains('p-2'));
+            return div.classList.contains('flex') &&
+              div.classList.contains('items-center') &&
+              div.classList.contains('justify-between') &&
+              (div.classList.contains('p-2.5') || div.classList.contains('p-2'));
           });
         }
-        
+
         if (!buttonsContainer) return;
-        
+
         // Find the left group (div with relative flex items-center gap-2 OR flex flex-row items-center gap-2)
         // This contains attach, GitHub, Fork, Ultra buttons (or attach, GitHub, model selector for main task page)
         let leftGroup = Array.from(buttonsContainer.querySelectorAll('div')).find(div => {
@@ -452,22 +476,22 @@ setInterval(() => {
           const hasGap2 = div.classList.contains('gap-2');
           const hasRelative = div.classList.contains('relative');
           const hasFlexRow = div.classList.contains('flex-row');
-          
+
           // Check for common button indicators
-          const hasAttach = div.querySelector('img[src*="attach.svg"]') || 
-                           div.querySelector('img[src*="copy-paperclip.svg"]') ||
-                           div.querySelector('img[src*="paperclip"]');
+          const hasAttach = div.querySelector('img[src*="attach.svg"]') ||
+            div.querySelector('img[src*="copy-paperclip.svg"]') ||
+            div.querySelector('img[src*="paperclip"]');
           const hasGitHub = div.querySelector('img[src*="white-github.svg"]') ||
-                           div.querySelector('img[src*="github-icon.svg"]') ||
-                           div.querySelector('img[src*="github"]');
+            div.querySelector('img[src*="github-icon.svg"]') ||
+            div.querySelector('img[src*="github"]');
           const hasFork = div.querySelector('img[src*="fork.svg"]');
           const hasModelSelector = div.querySelector('[data-testid="model-selector"]');
-          
-          return hasFlex && hasItemsCenter && hasGap2 && 
-                 (hasRelative || hasFlexRow) &&
-                 (hasAttach || hasGitHub || hasFork || hasModelSelector);
+
+          return hasFlex && hasItemsCenter && hasGap2 &&
+            (hasRelative || hasFlexRow) &&
+            (hasAttach || hasGitHub || hasFork || hasModelSelector);
         });
-        
+
         if (leftGroup) {
           parentFlex = leftGroup;
           target = null;
@@ -477,13 +501,13 @@ setInterval(() => {
       } else if (windowUrl.includes('agt.compasai.com')) {
         // Compas AI (AGT): Insert in the bottom toolbar row beside controls
         const toolbarRow = document.querySelector('.flex.flex-wrap.items-center.border-t') ||
-                           document.querySelector('[class*="flex-wrap"][class*="items-center"][class*="border-t"]');
+          document.querySelector('[class*="flex-wrap"][class*="items-center"][class*="border-t"]');
         if (toolbarRow) {
           parentFlex = toolbarRow;
           target = toolbarRow.firstElementChild;
         } else {
           const altRow = document.querySelector('.flex.flex-row.items-center.justify-between') ||
-                         document.querySelector('[class*="items-center"][class*="justify-between"]');
+            document.querySelector('[class*="items-center"][class*="justify-between"]');
           if (!altRow) return;
           parentFlex = altRow;
           target = altRow.firstElementChild;
@@ -509,7 +533,7 @@ setInterval(() => {
       wrapper.style.borderRadius = '50%';
       wrapper.style.transition = 'opacity 0.2s';
       wrapper.style.opacity = '1';
-      
+
       // Gemini-specific styling to match Material Design
       if (windowUrl.includes('gemini.google.com')) {
         wrapper.style.border = 'none';
@@ -746,85 +770,22 @@ setInterval(() => {
           }
         } catch (e) { }
       } else if (windowUrl.includes('perplexity.ai')) {
-
-      console.log("[Alchemyst] Perplexity injector running…");
-
-      // -------- deep shadow DOM scanner ----------
-      function deepFind(testFn, root = document) {
-        const stack = [root];
-
-        while (stack.length) {
-          const node = stack.pop();
-          if (!node) continue;
-
-          if (testFn(node)) return node;
-
-          // children
-          if (node.children) {
-            for (const c of node.children) stack.push(c);
+        // Perplexity: Insert before the submit button using parentFlex/target from detection above
+        console.log('[Alchemyst] Perplexity injector running, parentFlex:', !!parentFlex, 'target:', !!target);
+        try {
+          if (parentFlex && target && target !== parentFlex) {
+            parentFlex.insertBefore(wrapper, target);
+            console.log('[Alchemyst] Button injected successfully for Perplexity');
+          } else if (parentFlex) {
+            parentFlex.insertBefore(wrapper, parentFlex.firstChild);
+            console.log('[Alchemyst] Button injected at start for Perplexity');
+          } else {
+            console.log('[Alchemyst] No valid parent found for Perplexity injection');
           }
-          // shadow root
-          if (node.shadowRoot) stack.push(node.shadowRoot);
+        } catch (e) {
+          console.error('[Alchemyst] Failed to inject button for Perplexity:', e);
         }
-
-        return null;
-      }
-
-      // -------- locate input/editor --------
-      const input = deepFind(el =>
-        el.tagName === "TEXTAREA" ||
-        el.getAttribute?.("contenteditable") === "true" ||
-        el.getAttribute?.("role") === "textbox"
-      );
-
-      if (!input) {
-        console.log("[Alchemyst] No input/editor found.");
-        return;
-      }
-
-      console.log("[Alchemyst] Found input:", input);
-
-      // -------- climb upward to composer --------
-      let composer = input.closest("form")
-        || input.closest("section")
-        || deepFind(el => el.id?.includes("composer") || el.dataset?.testid?.includes?.("composer"));
-
-      if (!composer) {
-        composer = input.parentElement;
-      }
-
-      if (!composer) {
-        console.log("[Alchemyst] No composer container found.");
-        return;
-      }
-
-      console.log("[Alchemyst] Composer:", composer);
-
-      // -------- find toolbar or button row --------
-      let toolbar = deepFind(el =>
-        el.tagName === "DIV" &&
-        getComputedStyle(el).display.includes("flex") &&
-        el.querySelector?.("button")
-      , composer) || composer;
-
-      console.log("[Alchemyst] Toolbar:", toolbar);
-
-      // -------- find send button robustly --------
-      let sendButton =
-        toolbar.querySelector('button[type="submit"]') ||
-        toolbar.querySelector('button[data-testid*="send" i]') ||
-        deepFind(el => el.tagName === "BUTTON" && el.querySelector?.("svg"), toolbar);
-
-      if (sendButton?.parentElement) {
-        parentFlex = sendButton.parentElement;
-        target = sendButton;
-        console.log("[Alchemyst] Will inject before send button");
-      } else {
-        parentFlex = toolbar;
-        target = toolbar.firstElementChild;
-        console.log("[Alchemyst] Will inject at toolbar beginning (fallback)");
-      }
-    } else if (windowUrl.includes('manus.im')) {
+      } else if (windowUrl.includes('manus.im')) {
         // Manus: Append to the left button section
         try {
           if (parentFlex) {
