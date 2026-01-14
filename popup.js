@@ -123,6 +123,13 @@ async function flashBadge(text, color) {
 
 document.getElementById("saveKey").addEventListener("click", async () => {
   const apiKey = document.getElementById("apiKey").value.trim();
+  const contextKeys = document
+    .getElementById("contextKeys")
+    .value
+    .split(",")
+    .map(k => k.trim())
+    .filter(Boolean);
+
   if (!apiKey) {
     showStatus('Please enter an API key!', 'error');
     return;
@@ -136,6 +143,7 @@ document.getElementById("saveKey").addEventListener("click", async () => {
 
   try {
     await chrome.storage.local.set({ alchemystApiKey: apiKey });
+    await chrome.storage.local.set({ contextKeys: contextKeys });
     showStatus('API key saved successfully!', 'success');
   } catch (error) {
     showStatus('Failed to save API key!', 'error');
@@ -257,8 +265,8 @@ document.getElementById("saveContext").addEventListener("click", async () => {
     console.log('[Save Context] Raw results:', results);
 
     if (results && results[0] && results[0].result) {
-      const { memoryId, contents } = results[0].result;
-      console.log('[Save Context] Extracted memoryId:', memoryId);
+      const { sessionId, contents } = results[0].result;
+      console.log('[Save Context] Extracted sessionId:', sessionId);
       console.log('[Save Context] Contents count:', Array.isArray(contents) ? contents.length : 'not-array');
       if (Array.isArray(contents)) console.log('[Save Context] First item sample:', contents[0]);
 
@@ -272,7 +280,7 @@ document.getElementById("saveContext").addEventListener("click", async () => {
 
       const port = chrome.runtime.connect({ name: "alchemyst" });
       const messageId = Date.now() + Math.random();
-      console.log('[Save Context] Posting addMemory via port', { messageId, memoryId, count: contents.length });
+      console.log('[Save Context] Posting addMemory via port', { messageId, sessionId, count: contents.length });
 
       port.onMessage.addListener((response) => {
         if (response.id === messageId) {
@@ -315,7 +323,7 @@ document.getElementById("saveContext").addEventListener("click", async () => {
       port.postMessage({
         type: "addMemory",
         id: messageId,
-        memoryId: memoryId,
+        sessionId: sessionId,
         contents: contents
       });
       console.log('[Save Context] addMemory posted');
@@ -355,7 +363,7 @@ async function scrapeConversation() {
     console.time('[Scraper] total');
     const url = window.location.href;
     console.log('[Scraper] URL:', url);
-    let memoryId = '';
+    let sessionId = '';
 
     const chatgptMatch = url.match(/\/c\/([a-f0-9-]+)/);
     const claudeMatch = url.match(/\/chat\/([a-f0-9-]+)/);
@@ -372,36 +380,36 @@ async function scrapeConversation() {
 
     // Check more specific patterns first (with domain) before generic /app/ patterns
     if (chatgptMatch) {
-      memoryId = chatgptMatch[1];
+      sessionId = chatgptMatch[1];
     } else if (claudeMatch) {
-      memoryId = claudeMatch[1];
+      sessionId = claudeMatch[1];
     } else if (manusMatch) {
-      memoryId = manusMatch[1];
+      sessionId = manusMatch[1];
     } else if (deepseekMatch) {
-      memoryId = deepseekMatch[1];
+      sessionId = deepseekMatch[1];
     } else if (lovableMatch) {
-      memoryId = lovableMatch[1];
+      sessionId = lovableMatch[1];
     } else if (perplexityMatch) {
-      memoryId = perplexityMatch[1];
+      sessionId = perplexityMatch[1];
     } else if (boltMatch) {
-      memoryId = boltMatch[1];
+      sessionId = boltMatch[1];
     } else if (geminiMatch) {
-      memoryId = geminiMatch[1];
+      sessionId = geminiMatch[1];
     } else if (v0Match) {
-      memoryId = v0Match[1];
+      sessionId = v0Match[1];
     } else if (i10xMatch) {
-      memoryId = i10xMatch[1];
+      sessionId = i10xMatch[1];
     } else if (emergentMatch) {
-      memoryId = emergentMatch[1] || 'emergent';
+      sessionId = emergentMatch[1] || 'emergent';
     } else {
-      memoryId = 'unknown-' + Date.now();
+      sessionId = 'unknown-' + Date.now();
     }
     const contents = [];
     // Emergent AI branch
     if (window.location.hostname.includes('app.emergent.sh')) {
       console.log('[Scraper] Processing Emergent conversation');
 
-      memoryId = `emergent-${Date.now()}`;
+      sessionId = `emergent-${Date.now()}`;
 
       const listRoot = document.querySelector('[data-testid="virtuoso-item-list"]') || document;
       const itemNodes = Array.from(listRoot.querySelectorAll('[data-item-index]'));
@@ -448,14 +456,14 @@ async function scrapeConversation() {
         if (contentText && contentText.trim().length > 0) {
           contents.push({
             content: `[${role}] ${contentText}`,
-            metadata: { source: memoryId, messageId }
+            metadata: { source: sessionId, messageId }
           });
         }
       });
 
       console.log('[Scraper] Emergent done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
     // i10x.ai branch
     if (window.location.hostname.includes('i10x.ai')) {
@@ -478,7 +486,7 @@ async function scrapeConversation() {
         if (!contentText) contentText = (bubble.textContent || '').trim();
         // Filter UI noise
         if (contentText && contentText.length > 3 && !/Copy|Model Used|Show More/i.test(contentText)) {
-          contents.push({ content: `[user] ${contentText}`, metadata: { source: memoryId, messageId: msgId } });
+          contents.push({ content: `[user] ${contentText}`, metadata: { source: sessionId, messageId: msgId } });
         }
       });
 
@@ -496,16 +504,16 @@ async function scrapeConversation() {
         });
         if (!contentText) contentText = (blk.textContent || '').trim();
         if (contentText && contentText.length > 3) {
-          contents.push({ content: `[assistant] ${contentText}`, metadata: { source: memoryId, messageId: msgId } });
+          contents.push({ content: `[assistant] ${contentText}`, metadata: { source: sessionId, messageId: msgId } });
         }
       });
 
       console.log('[Scraper] i10x done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
-    
+
 
     // Claude.ai branch: different DOM
     if (window.location.hostname.includes('claude.ai')) {
@@ -533,14 +541,14 @@ async function scrapeConversation() {
           const prefixed = `[${role}] ${contentText}`;
           contents.push({
             content: prefixed,
-            metadata: { source: memoryId, messageId }
+            metadata: { source: sessionId, messageId }
           });
           if (idx < 2) console.log('[Scraper] Claude added', { role, length: contentText.length });
         }
       });
       console.log('[Scraper] Claude done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // Gemini branch: different DOM structure
@@ -573,7 +581,7 @@ async function scrapeConversation() {
             const prefixed = `[user] ${contentText}`;
             contents.push({
               content: prefixed,
-              metadata: { source: memoryId, messageId }
+              metadata: { source: sessionId, messageId }
             });
             if (queryIdx < 2) console.log('[Scraper] Gemini user query added', { length: contentText.length });
           }
@@ -606,7 +614,7 @@ async function scrapeConversation() {
               const prefixed = `[assistant] ${contentText}`;
               contents.push({
                 content: prefixed,
-                metadata: { source: memoryId, messageId }
+                metadata: { source: sessionId, messageId }
               });
               if (responseIdx < 2) console.log('[Scraper] Gemini assistant response added', { length: contentText.length });
             }
@@ -616,7 +624,7 @@ async function scrapeConversation() {
 
       console.log('[Scraper] Gemini done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // v0.app branch: different DOM structure
@@ -624,18 +632,18 @@ async function scrapeConversation() {
       console.log('[Scraper] Using v0 selectors');
       const messages = Array.from(document.querySelectorAll('[data-testid="message"]'));
       console.log('[Scraper] Found v0 messages:', messages.length);
-      
+
       messages.forEach((message, idx) => {
         const messageId = message.id || `v0-msg-${idx}-${Date.now()}`;
-        
+
         // Determine role based on CSS classes
         const isUser = message.classList.contains('origin-right') && message.classList.contains('items-end');
         const role = isUser ? 'user' : 'assistant';
-        
+
         // Extract text content from prose elements
         const proseElements = message.querySelectorAll('.prose p, .prose li, .prose code, .prose pre');
         let contentText = '';
-        
+
         proseElements.forEach((el) => {
           const text = (el.textContent || '').trim();
           if (text) {
@@ -643,26 +651,26 @@ async function scrapeConversation() {
             contentText += text;
           }
         });
-        
+
         // Fallback: get all text from the message if no prose elements found
         if (!contentText) {
           const fallback = (message.textContent || '').trim();
           if (fallback) contentText = fallback;
         }
-        
+
         if (contentText) {
           const prefixed = `[${role}] ${contentText}`;
           contents.push({
             content: prefixed,
-            metadata: { source: memoryId, messageId }
+            metadata: { source: sessionId, messageId }
           });
           if (idx < 2) console.log('[Scraper] v0 added', { role, length: contentText.length });
         }
       });
-      
+
       console.log('[Scraper] v0 done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // Lovable branch
@@ -742,33 +750,33 @@ async function scrapeConversation() {
         if (contentText) {
           contents.push({
             content: `[${role}] ${contentText}`,
-            metadata: { source: memoryId, messageId: msgId }
+            metadata: { source: sessionId, messageId: msgId }
           });
         }
       });
       console.log('[Scraper] Lovable done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // Perplexity.ai branch: different DOM structure
     if (window.location.hostname.includes('perplexity.ai')) {
       console.log('[Scraper] Processing Perplexity conversation');
-      
+
       // Look for message containers - Perplexity uses different selectors
       const messageContainers = document.querySelectorAll('[data-testid*="message"], .group, .flex.flex-col.pb-2');
       console.log('[Scraper] Found Perplexity message containers:', messageContainers.length);
 
       messageContainers.forEach((container, idx) => {
         const msgId = container.getAttribute('data-testid') || container.id || `perplexity-${idx}-${Date.now()}`;
-        
+
         // Determine role by looking for user/assistant indicators
         let role = 'assistant';
-        const isUserMessage = container.querySelector('[data-testid*="user"]') || 
-                             container.classList.contains('items-end') ||
-                             container.querySelector('.justify-end') ||
-                             container.querySelector('[class*="user"]');
-        
+        const isUserMessage = container.querySelector('[data-testid*="user"]') ||
+          container.classList.contains('items-end') ||
+          container.querySelector('.justify-end') ||
+          container.querySelector('[class*="user"]');
+
         if (isUserMessage) {
           role = 'user';
         }
@@ -796,14 +804,14 @@ async function scrapeConversation() {
         if (contentText && contentText.length > 10) { // Filter out very short content
           contents.push({
             content: `[${role}] ${contentText}`,
-            metadata: { source: memoryId, messageId: msgId }
+            metadata: { source: sessionId, messageId: msgId }
           });
         }
       });
 
       console.log('[Scraper] Perplexity done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // Bolt branch
@@ -840,13 +848,13 @@ async function scrapeConversation() {
           if (fallback) contentText = fallback;
         }
         if (contentText) {
-          contents.push({ content: `[${role}] ${contentText}`, metadata: { source: memoryId, messageId: msgId } });
+          contents.push({ content: `[${role}] ${contentText}`, metadata: { source: sessionId, messageId: msgId } });
         }
       });
 
       console.log('[Scraper] Bolt done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // Manus branch
@@ -859,13 +867,13 @@ async function scrapeConversation() {
 
       messageGroups.forEach((group, idx) => {
         const eventId = group.getAttribute('data-event-id') || `manus-${idx}-${Date.now()}`;
-        
+
         // Determine role: user messages are in flex-col items-end containers
         let role = 'assistant';
         const isUserMessage = group.querySelector('.flex.flex-col.items-end') ||
-                             group.classList.contains('items-end') ||
-                             group.querySelector('[class*="items-end"]');
-        
+          group.classList.contains('items-end') ||
+          group.querySelector('[class*="items-end"]');
+
         if (isUserMessage) {
           role = 'user';
         }
@@ -873,41 +881,41 @@ async function scrapeConversation() {
         // Extract text content from the message bubble
         // User messages: .rounded-\[12px\] with text content
         // Assistant messages: similar structure
-        const messageBubble = group.querySelector('.rounded-\\[12px\\]') || 
-                             group.querySelector('[class*="rounded"]') ||
-                             group.querySelector('.relative.flex.items-center');
-        
+        const messageBubble = group.querySelector('.rounded-\\[12px\\]') ||
+          group.querySelector('[class*="rounded"]') ||
+          group.querySelector('.relative.flex.items-center');
+
         let contentText = '';
-        
+
         if (messageBubble) {
           // Try to get text from span with u-break-words or similar
           const textSpan = messageBubble.querySelector('.u-break-words') ||
-                          messageBubble.querySelector('[class*="break-words"]') ||
-                          messageBubble.querySelector('span');
-          
+            messageBubble.querySelector('[class*="break-words"]') ||
+            messageBubble.querySelector('span');
+
           if (textSpan) {
             contentText = (textSpan.textContent || '').trim();
           }
-          
+
           // Fallback: get all text from bubble
           if (!contentText) {
             contentText = (messageBubble.textContent || '').trim();
           }
         }
-        
+
         // If still no content, try the whole group
         if (!contentText) {
           contentText = (group.textContent || '').trim();
         }
 
         // Filter out empty messages and UI elements
-        if (contentText && contentText.length > 3 && 
-            !contentText.includes('Friday') && 
-            !contentText.includes('Copy') &&
-            !contentText.includes('Save')) {
+        if (contentText && contentText.length > 3 &&
+          !contentText.includes('Friday') &&
+          !contentText.includes('Copy') &&
+          !contentText.includes('Save')) {
           contents.push({
             content: `[${role}] ${contentText}`,
-            metadata: { source: memoryId, messageId: eventId }
+            metadata: { source: sessionId, messageId: eventId }
           });
           if (idx < 2) console.log('[Scraper] Manus added', { role, length: contentText.length });
         }
@@ -915,7 +923,7 @@ async function scrapeConversation() {
 
       console.log('[Scraper] Manus done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // DeepSeek branch
@@ -928,15 +936,15 @@ async function scrapeConversation() {
 
       userMessages.forEach((container, idx) => {
         const msgId = container.getAttribute('data-um-id') || `deepseek-user-${idx}-${Date.now()}`;
-        
+
         // User message content is in .fbb737a4
         const contentDiv = container.querySelector('.fbb737a4');
         let contentText = '';
-        
+
         if (contentDiv) {
           contentText = (contentDiv.textContent || '').trim();
         }
-        
+
         // Fallback: get text from message bubble
         if (!contentText) {
           const messageBubble = container.querySelector('.ds-message');
@@ -948,7 +956,7 @@ async function scrapeConversation() {
         if (contentText && contentText.length > 0) {
           contents.push({
             content: `[user] ${contentText}`,
-            metadata: { source: memoryId, messageId: msgId }
+            metadata: { source: sessionId, messageId: msgId }
           });
           if (idx < 2) console.log('[Scraper] DeepSeek user added', { length: contentText.length });
         }
@@ -960,11 +968,11 @@ async function scrapeConversation() {
 
       assistantMessages.forEach((container, idx) => {
         const msgId = container.id || `deepseek-assistant-${idx}-${Date.now()}`;
-        
+
         // Assistant message content is in .ds-markdown
         const markdownDiv = container.querySelector('.ds-markdown');
         let contentText = '';
-        
+
         if (markdownDiv) {
           // Extract text from paragraphs
           const paragraphs = markdownDiv.querySelectorAll('p.ds-markdown-paragraph, p');
@@ -975,13 +983,13 @@ async function scrapeConversation() {
               contentText += text;
             }
           });
-          
+
           // Fallback: get all text from markdown div
           if (!contentText) {
             contentText = (markdownDiv.textContent || '').trim();
           }
         }
-        
+
         // Fallback: get text from message bubble
         if (!contentText) {
           const messageBubble = container.querySelector('.ds-message');
@@ -991,13 +999,13 @@ async function scrapeConversation() {
         }
 
         // Filter out UI button text
-        if (contentText && contentText.length > 0 && 
-            !contentText.includes('Copy') &&
-            !contentText.includes('Regenerate') &&
-            !contentText.includes('Thumbs')) {
+        if (contentText && contentText.length > 0 &&
+          !contentText.includes('Copy') &&
+          !contentText.includes('Regenerate') &&
+          !contentText.includes('Thumbs')) {
           contents.push({
             content: `[assistant] ${contentText}`,
-            metadata: { source: memoryId, messageId: msgId }
+            metadata: { source: sessionId, messageId: msgId }
           });
           if (idx < 2) console.log('[Scraper] DeepSeek assistant added', { length: contentText.length });
         }
@@ -1005,7 +1013,7 @@ async function scrapeConversation() {
 
       console.log('[Scraper] DeepSeek done', { count: contents.length });
       console.timeEnd('[Scraper] total');
-      return { memoryId, contents };
+      return { sessionId, contents };
     }
 
     // ChatGPT branch
@@ -1040,7 +1048,7 @@ async function scrapeConversation() {
         contents.push({
           content: prefixed,
           metadata: {
-            source: memoryId,
+            source: sessionId,
             messageId: messageId
           }
         });
@@ -1050,12 +1058,12 @@ async function scrapeConversation() {
       }
     });
 
-    console.log('[Scraper] Done', { memoryId, count: contents.length });
+    console.log('[Scraper] Done', { sessionId, count: contents.length });
     console.timeEnd('[Scraper] total');
-    return { memoryId, contents };
+    return { sessionId, contents };
   } catch (e) {
     console.error('[Scraper] Failed:', e);
-    return { memoryId: 'error-' + Date.now(), contents: [] };
+    return { sessionId: 'error-' + Date.now(), contents: [] };
   }
 }
 

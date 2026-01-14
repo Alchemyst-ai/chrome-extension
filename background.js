@@ -24,7 +24,7 @@ chrome.runtime.onConnect.addListener((port) => {
   console.log("[Port Connected]:", port.name);
 
   if (port.name !== "alchemyst") return;
-  
+
   let isDisconnected = false;
   port.onDisconnect.addListener(() => {
     isDisconnected = true;
@@ -35,23 +35,23 @@ chrome.runtime.onConnect.addListener((port) => {
     console.log("[Port Message Received]:", msg?.type, "query:", msg?.query, "id:", msg?.id);
 
     if (msg?.type === "addMemory") {
-      console.log('[addMemory] Received', { id: msg?.id, memoryId: msg?.memoryId, count: Array.isArray(msg?.contents) ? msg.contents.length : 'not-array' });
+      console.log('[addMemory] Received', { id: msg?.id, sessionId: msg?.sessionId, count: Array.isArray(msg?.contents) ? msg.contents.length : 'not-array' });
       try {
         const { alchemystApiKey } = await chrome.storage.local.get("alchemystApiKey");
         if (!alchemystApiKey) {
           if (!isDisconnected) {
-            try { 
-              port.postMessage({ id: msg.id, error: "No API key found." }); 
-            } catch (_) {}
+            try {
+              port.postMessage({ id: msg.id, error: "No API key found." });
+            } catch (_) { }
           }
           return;
         }
 
         const payload = {
-          memoryId: msg.memoryId,
+          sessionId: msg.sessionId,
           contents: Array.isArray(msg.contents) ? msg.contents : [],
         };
-        console.log('[addMemory] Payload preview', { memoryId: payload.memoryId, count: payload.contents.length, first: payload.contents[0] });
+        console.log('[addMemory] Payload preview', { sessionId: payload.sessionId, count: payload.contents.length, first: payload.contents[0] });
 
         const attempt = async (triesLeft, delayMs) => {
           console.log(`[addMemory] Attempt ${4 - triesLeft}/3, delayMs=${delayMs}`);
@@ -69,10 +69,10 @@ chrome.runtime.onConnect.addListener((port) => {
           const text = await res.text().catch(() => "");
           if (res.ok) {
             console.log('[addMemory] Success response length:', text?.length || 0);
-            if (!isDisconnected) { 
-              try { 
-                port.postMessage({ id: msg.id, ok: true, body: text }); 
-              } catch (_) {} 
+            if (!isDisconnected) {
+              try {
+                port.postMessage({ id: msg.id, ok: true, body: text });
+              } catch (_) { }
             }
             return true;
           }
@@ -83,10 +83,10 @@ chrome.runtime.onConnect.addListener((port) => {
             return attempt(triesLeft - 1, delayMs * 2);
           }
           console.error("[Port] addMemory failed", status, text?.slice(0, 400));
-          if (!isDisconnected) { 
-            try { 
-              port.postMessage({ id: msg.id, error: `HTTP ${status}`, body: text }); 
-            } catch (_) {} 
+          if (!isDisconnected) {
+            try {
+              port.postMessage({ id: msg.id, error: `HTTP ${status}`, body: text });
+            } catch (_) { }
           }
           return false;
         };
@@ -97,7 +97,7 @@ chrome.runtime.onConnect.addListener((port) => {
         if (!isDisconnected) {
           try {
             port.postMessage({ id: msg.id, error: "Failed to save memory" });
-          } catch (_) {}
+          } catch (_) { }
         }
       }
       return;
@@ -109,9 +109,9 @@ chrome.runtime.onConnect.addListener((port) => {
         const { alchemystApiKey } = await chrome.storage.local.get("alchemystApiKey");
         if (!alchemystApiKey) {
           if (!isDisconnected) {
-            try { 
+            try {
               port.postMessage({ id: msg.id, error: "No API key found." });
-            } catch (_) {}
+            } catch (_) { }
           }
           return;
         }
@@ -136,26 +136,26 @@ chrome.runtime.onConnect.addListener((port) => {
           // Success response: { success: true, message: "...", referrer: { id, name } }
           if (!isDisconnected) {
             try {
-              port.postMessage({ 
-                id: msg.id, 
-                ok: true, 
+              port.postMessage({
+                id: msg.id,
+                ok: true,
                 message: data?.message || 'Referral code verified successfully',
                 referrer: data?.referrer
               });
-            } catch (_) {}
+            } catch (_) { }
           }
         } else {
           // Error response: { error: "...", message?: "...", details?: [...] }
           const errorMessage = data?.error || data?.message || `HTTP ${res.status}`;
           if (!isDisconnected) {
             try {
-              port.postMessage({ 
-                id: msg.id, 
+              port.postMessage({
+                id: msg.id,
                 error: errorMessage,
                 message: data?.message,
                 details: data?.details
               });
-            } catch (_) {}
+            } catch (_) { }
           }
         }
       } catch (err) {
@@ -163,7 +163,7 @@ chrome.runtime.onConnect.addListener((port) => {
         if (!isDisconnected) {
           try {
             port.postMessage({ id: msg.id, error: "Failed to verify invitation" });
-          } catch (_) {}
+          } catch (_) { }
         }
       }
       return;
@@ -171,6 +171,7 @@ chrome.runtime.onConnect.addListener((port) => {
 
     if (msg?.type === "fetchContext") {
       // Guard: avoid network call for empty/whitespace-only queries
+      console.log("fetch context message started");
       const trimmedQuery = String(msg?.query || "").trim();
       if (!trimmedQuery) {
         console.log("[Port] Empty query received, returning empty context immediately", { id: msg?.id });
@@ -186,9 +187,12 @@ chrome.runtime.onConnect.addListener((port) => {
         return;
       }
       try {
+        console.log("Inside try block : fetch context message started");
         const { alchemystApiKey } = await chrome.storage.local.get(
           "alchemystApiKey"
         );
+        const { contextKeys } = await chrome.storage.local.get("contextKeys");
+        const keysToSearch = contextKeys.length > 0 ? contextKeys : [null];
         if (!alchemystApiKey) {
           console.warn("No API key found for port connection");
           if (!isDisconnected) {
@@ -205,67 +209,87 @@ chrome.runtime.onConnect.addListener((port) => {
         }
 
         console.log("[Port] Making API request...");
-        const res = await fetch(
-          "https://platform-backend.getalchemystai.com/api/v1/context/search?mode=fast",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${alchemystApiKey}`,
-            },
-            body: JSON.stringify({
+
+        const searchPromises = keysToSearch.map(async (key) => {
+          try {
+            const payload = JSON.stringify({
               query: msg.query,
               similarity_threshold: 0.8,
               minimum_similarity_threshold: 0.5,
               scope: "internal",
               metadata: null,
-            }),
-          }
-        );
+              magic_key: key
+            })
+            console.log("Payload preview :", payload);
+            const res = await fetch(
+              "https://platform-backend.getalchemystai.com/api/v1/context/search",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${alchemystApiKey}`,
+                },
+                body: payload
+              }
+            );
 
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          console.error("[Port] API request failed:", {
-            status: res.status,
-            details: text,
-          });
-          if (!isDisconnected) {
-            try {
-              port.postMessage({
-                id: msg.id,
-                error: `HTTP ${res.status}`,
+            if (!res.ok) {
+              const text = await res.text().catch(() => "");
+              console.error("[Port] API request failed:", {
+                status: res.status,
                 details: text,
               });
-            } catch (e) {
-              console.warn("[Port] Failed to post HTTP error (disconnected?)", e);
-            }
-          } else {
-            console.log("[Port] Skipping error response because port is disconnected", { id: msg?.id });
-          }
-          return;
-        }
+              if (!isDisconnected) {
+                try {
+                  port.postMessage({
+                    id: msg.id,
+                    error: `HTTP ${res.status}`,
+                    details: text,
+                  });
+                } catch (e) {
+                  console.warn("[Port] Failed to post HTTP error (disconnected?)", e);
+                }
+              } else {
+                console.log("[Port] Skipping error response because port is disconnected", { id: msg?.id });
+              }
+              return;
 
-        const data = await res.json();
+            }
+            return await res.json();
+          }
+          catch (err) {
+            console.error("[Port] Fetch error:", err);
+            return null;
+          }
+        });
+       
+        const results = await Promise.all(searchPromises);
+        console.log("Raw result : ", results);
+        const allContexts = results
+          .filter(Boolean)
+          .flatMap((res) => res.contexts || []);
+
+         const uniqueContexts = Array.from(
+          new Map(allContexts.map((item) => [item.content, item])).values()
+        )
+
         console.log("[Port] API Response received:", {
-          statusText: data?.statusText,
-          contextCount: data?.contexts?.length,
-          hasContexts: Array.isArray(data?.contexts) && data.contexts.length > 0,
+          totalUnique: uniqueContexts.length,
+          hasContexts: uniqueContexts.length > 0,
         });
 
-        const contexts = Array.isArray(data?.contexts) ? data.contexts : [];
-        const topContents = contexts
+        const topContents = uniqueContexts
           .sort((a, b) => (b?.score || 0) - (a?.score || 0))
           .slice(0, 5)
           .map((c) => `- ${c?.content || ""}`)
-          .filter(Boolean)
+          .filter((text) => text.trim() !== "-")
           .join("\n");
 
         console.log("[Port] Processed contexts:", {
-          totalContexts: contexts.length,
           topContentsLength: topContents.length,
-          topContentsPreview: topContents.substring(0, 100),
           isEmpty: topContents.length === 0
         });
+
         console.log("[Port] Sending response for message:", msg.id);
         if (!isDisconnected) {
           try {
@@ -342,7 +366,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // Set uninstall URL when extension is installed or updated
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log("[Install] Extension installed/updated:", details.reason);
-  
+
   // Set the PostHog survey as the uninstall URL
   try {
     await chrome.runtime.setUninstallURL("https://us.posthog.com/external_surveys/019a1b80-4e96-0000-fe73-12e14a6b6cac");
