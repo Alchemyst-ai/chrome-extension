@@ -1,11 +1,14 @@
 (async () => {
   const { alchemystApiKey } = await chrome.storage.local.get(['alchemystApiKey']);
+  const {contextKeys} = await chrome.storage.local.get(['contextKeys']);
+  const contextString = contextKeys ? contextKeys.join(', ') : '';
   console.log({ alchemystApiKey });
 
   const manifest = chrome.runtime.getManifest();
   const version = manifest.version;
 
   document.getElementById('apiKey').value = alchemystApiKey || '';
+  document.getElementById('contextKeys').value = contextString
   document.getElementById('versionContainer').innerHTML = `v${version}`;
   // document.getElementById('useApi').checked = useAlchemystApi || false;
   try {
