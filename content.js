@@ -186,8 +186,8 @@ setInterval(() => {
 // Inject logo button next to the voice icon
 (function injectLogoButton() {
   const BTN_ID = 'alchemyst-logo-button';
-  const VOICE_CONTAINER_SELECTOR = '[data-testid="composer-speech-button-container"]';
-  const DICTATE_BUTTON_SELECTOR = 'button[aria-label="Dictate button"]';
+  const GPT_VOICE_CONTAINER_SELECTOR = '[data-testid="composer-speech-button-container"]';
+  const GPT_DICTATE_BUTTON_SELECTOR = 'button[aria-label="Start dictation"]';
   const CLAUDE_BUTTONS_CONTAINER = '.relative.flex-1.flex.items-center.gap-2.shrink.min-w-0';
   const GEMINI_TOOLBOX_CONTAINER = '.leading-actions-wrapper, .input-area, .input-container, [data-testid="input-area"]';
   const MEMORY_STATE_KEY = 'alchemyst_memory_enabled';
@@ -291,8 +291,8 @@ setInterval(() => {
         }
       } else if (windowUrl.includes('chatgpt.com') || windowUrl.includes('chat.openai.com')) {
         // ChatGPT: Prefer to insert before the Dictate button; fallback to the voice container
-        const dictateBtn = document.querySelector(DICTATE_BUTTON_SELECTOR);
-        const voiceContainer = document.querySelector(VOICE_CONTAINER_SELECTOR);
+        const dictateBtn = document.querySelector(GPT_DICTATE_BUTTON_SELECTOR);
+        const voiceContainer = document.querySelector(GPT_VOICE_CONTAINER_SELECTOR);
         const dictateWrapper = dictateBtn ? (dictateBtn.closest('span') || dictateBtn) : null;
         parentFlex = (voiceContainer && voiceContainer.parentElement) || (dictateWrapper && dictateWrapper.parentElement);
         target = dictateWrapper || voiceContainer;
@@ -878,15 +878,20 @@ const pendingRequests = new Map();
 
 // Inject in-page hook and bridge messages for context fetch
 (function injectInpage() {
-  try {
-    const url = chrome.runtime.getURL('inpage.js');
-    const s = document.createElement('script');
-    s.src = url;
-    s.async = false;
-    s.crossOrigin = 'anonymous';
-    (document.head || document.documentElement).appendChild(s);
-    s.onload = () => { s.remove(); };
-  } catch (_) { }
+  // ChatGPT is now injected declaratively in the MAIN world via manifest.json
+  const host = window.location.hostname;
+  const injectedDeclaratively = host.includes('chatgpt.com') || host.includes('chat.openai.com');
+  if (!injectedDeclaratively) {
+    try {
+      const url = chrome.runtime.getURL('inpage.js');
+      const s = document.createElement('script');
+      s.src = url;
+      s.async = false;
+      s.crossOrigin = 'anonymous';
+      (document.head || document.documentElement).appendChild(s);
+      s.onload = () => { s.remove(); };
+    } catch (_) { }
+  }
 
   // Bridge messages between page and extension for context fetch
   window.addEventListener('message', async (event) => {

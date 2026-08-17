@@ -1,4 +1,17 @@
 (function () {
+  if (window.__alchemystInpageInstalled) {
+    return;
+  }
+  window.__alchemystInpageInstalled = true;
+
+  function dlog(...args) {
+    try {
+      if (localStorage.getItem('alchemyst_debug') === '1') {
+        console.log('[Alchemyst]', ...args);
+      }
+    } catch (_) { }
+  }
+
   // Match ChatGPT conversation POST, Claude completion endpoint, Gemini StreamGenerate, v0 chat API, Lovable chat API, Perplexity ask endpoint, and Bolt endpoints
   const CHATGPT_ENDPOINT_REGEX = /\/backend-api\/f\/conversation(?:\?|$)/;
   const CLAUDE_ENDPOINT_REGEX = /\/api\/organizations\/[^\/]+\/chat_conversations\/[^\/]+\/completion$/;
@@ -153,6 +166,99 @@
     return response;
   }
 
+  async function bodyToString(body) {
+    if (body == null) return '';
+    if (typeof body === 'string') return body;
+    if (typeof body === 'object') {
+      try {
+        if (body instanceof URLSearchParams) return body.toString();
+        if (body instanceof Blob) return await body.text();
+        if (body instanceof ArrayBuffer) return new TextDecoder().decode(body);
+        if (ArrayBuffer.isView(body)) return new TextDecoder().decode(new Uint8Array(body.buffer, body.byteOffset, body.byteLength));
+        if (body instanceof FormData) {
+          const p = new URLSearchParams();
+          for (const [k, v] of body.entries()) p.append(k, v);
+          return p.toString();
+        }
+        if (typeof body.text === 'function') {
+          try { return await body.text(); } catch (_) { }
+        }
+      } catch (_) { }
+    }
+    return '';
+  }
+
+  async function readStreamToString(stream) {
+    try {
+      const reader = stream.getReader();
+      const decoder = new TextDecoder();
+      let out = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        out += decoder.decode(value, { stream: true });
+      }
+      out += decoder.decode();
+      return out;
+    } catch (_) { return ''; }
+  }
+
+  function stringToBody(text, originalBody) {
+    try {
+      const bytes = new TextEncoder().encode(text);
+      if (originalBody instanceof Blob) return new Blob([bytes], { type: originalBody.type || 'application/json' });
+      if (originalBody instanceof ArrayBuffer) return bytes.buffer;
+      if (ArrayBuffer.isView(originalBody)) {
+        const Ctor = originalBody.constructor || Uint8Array;
+        return new Ctor(bytes.buffer);
+      }
+    } catch (_) { }
+    return text;
+  }
+
+  function stringToStream(text) {
+    const encoder = new TextEncoder();
+    return new ReadableStream({
+      start(controller) {
+        try { controller.enqueue(encoder.encode(text)); } catch (_) { }
+        try { controller.close(); } catch (_) { }
+      }
+    });
+  }
+
+  function extractChatGPTUserText(payload) {
+    try {
+      const msgs = Array.isArray(payload?.messages) ? payload.messages : [];
+      const userMsg = msgs.find((m) => m?.author?.role === 'user') || msgs.find((m) => m?.role === 'user');
+      if (!userMsg) return '';
+      if (Array.isArray(userMsg?.content?.parts)) return userMsg.content.parts.join('\n') || '';
+      if (typeof userMsg?.content === 'string') return userMsg.content;
+      if (typeof userMsg?.content?.content === 'string') return userMsg.content.content;
+    } catch (_) { }
+    return '';
+  }
+
+  function enrichChatGPTPayload(payload, enriched) {
+    try {
+      const msgs = Array.isArray(payload?.messages) ? payload.messages : [];
+      const userMsg = msgs.find((m) => m?.author?.role === 'user') || msgs.find((m) => m?.role === 'user');
+      if (!userMsg) return false;
+      if (userMsg.content && Array.isArray(userMsg.content.parts)) {
+        userMsg.content.parts = [enriched];
+        return true;
+      }
+      if (typeof userMsg.content === 'string') {
+        userMsg.content = enriched;
+        return true;
+      }
+      if (userMsg.content && typeof userMsg.content === 'object') {
+        userMsg.content = Object.assign({}, userMsg.content, { parts: [enriched] });
+        return true;
+      }
+    } catch (_) { }
+    return false;
+  }
+
   async function enrichPayload(bodyText, url) {
     try {
       // Enriching payload
@@ -189,8 +295,7 @@
         
         if (url && CHATGPT_ENDPOINT_REGEX.test(url)) {
           // ChatGPT format
-          const userMsg = payload?.messages?.find(m => m?.author?.role === 'user');
-          userText = userMsg?.content?.parts?.join('\n') || '';
+          userText = extractChatGPTUserText(payload);
         } else if (url && CLAUDE_ENDPOINT_REGEX.test(url)) {
           // Claude format
           userText = payload?.prompt || '';
@@ -227,6 +332,11 @@
 
       // Skip enrichment for empty prompts
       if (!String(userText).trim()) {
+        return bodyText;
+      }
+
+      // Skip if already enriched (guards against double hooking)
+      if (userText.includes('The context of the conversation is:')) {
         return bodyText;
       }
 
@@ -295,9 +405,8 @@
           
           if (url && CHATGPT_ENDPOINT_REGEX.test(url)) {
             // ChatGPT format
-            const userMsg = payload?.messages?.find(m => m?.author?.role === 'user');
-            if (userMsg?.content?.parts && Array.isArray(userMsg.content.parts)) {
-              userMsg.content.parts = [enriched];
+            if (!enrichChatGPTPayload(payload, enriched)) {
+              return bodyText;
             }
           } else if (url && CLAUDE_ENDPOINT_REGEX.test(url)) {
             // Claude format
@@ -368,8 +477,8 @@
 
       if (shouldIntercept(input, init)) {
         const url = extractUrl(input, init);
-        // Intercepting request
-        
+        dlog('fetch intercepted:', url);
+
         // Handle Gemini StreamGenerate requests
         if (url && GEMINI_ENDPOINT_REGEX.test(url)) {
           if (init && init.body instanceof FormData) {
@@ -384,50 +493,86 @@
                 const newFReq = newParams.get('f.req');
                 if (newFReq) {
                   formData.set('f.req', newFReq);
-                  // Gemini FormData enriched
+                  dlog('Gemini FormData enriched');
                 }
               }
-            } catch (e) { 
-              // Error enriching Gemini FormData
-            }
-            // Continue with the original request after enrichment
+            } catch (e) { }
             return origFetch.call(this, input, init);
           }
         }
-        
-        // Handle other platforms (ChatGPT, Claude, v0, Lovable, Perplexity) with string body
-        if (init && typeof init.body === 'string') {
-          const newBody = await enrichPayload(init.body, url);
-          if (newBody !== init.body) {
-            // Request body enriched
-            init = Object.assign({}, init, { body: newBody, method: init.method || 'POST' });
-          }
-          const resp = await origFetch.call(this, input, init);
-          if (url && (PERPLEXITY_ENDPOINT_REGEX.test(url) || DEEPSEEK_ENDPOINT_REGEX.test(url))) { return handleSSEIfApplicable(resp, url); }
-          return resp;
-        }
 
-        // If input is a Request, clone and rewrite
-        if (input instanceof Request) {
-          const method = (init?.method) || input.method || 'GET';
-          if (method.toUpperCase() === 'POST') {
-            let bodyText = '';
+        const isRequest = input instanceof Request;
+        const method = ((isRequest ? input.method : init?.method) || 'GET').toUpperCase();
+        if (method === 'POST') {
+          let bodyText = '';
+          if (isRequest) {
             try { bodyText = await input.clone().text(); } catch (_) { }
-            if (bodyText) {
-              const newBody = await enrichPayload(bodyText, url);
-              if (newBody !== bodyText) {
-                // Request body enriched
-                const newReq = new Request(input, { body: newBody, method, headers: input.headers });
-                const resp = await origFetch.call(this, newReq, init);
+          } else if (init?.body != null) {
+            const body = init.body;
+            if (typeof body.getReader === 'function') {
+              try {
+                const [a, b] = body.tee();
+                bodyText = await readStreamToString(a);
+                init = Object.assign({}, init, { body: b });
+              } catch (_) { }
+            } else {
+              bodyText = await bodyToString(body);
+            }
+          }
+          dlog('POST body read, length:', bodyText.length);
+
+          if (bodyText) {
+            const newBody = await enrichPayload(bodyText, url);
+            if (newBody !== bodyText) {
+              dlog('body enriched:', bodyText.length, '->', newBody.length);
+              if (isRequest) {
+                const merged = Object.assign({}, {
+                  method: input.method,
+                  headers: input.headers,
+                  signal: input.signal,
+                  mode: input.mode,
+                  credentials: input.credentials,
+                  cache: input.cache,
+                  redirect: input.redirect,
+                  referrer: input.referrer,
+                  referrerPolicy: input.referrerPolicy,
+                  integrity: input.integrity,
+                  keepalive: input.keepalive,
+                }, init || {});
+                if (merged.body == null || merged.body === undefined) {
+                  merged.body = input.duplex ? stringToStream(newBody) : newBody;
+                  if (input.duplex) merged.duplex = 'half';
+                } else if (typeof merged.body === 'string') {
+                  merged.body = newBody;
+                } else if (typeof merged.body.getReader === 'function') {
+                  merged.body = stringToStream(newBody);
+                  merged.duplex = 'half';
+                } else {
+                  merged.body = stringToBody(newBody, merged.body);
+                }
+                const resp = await origFetch.call(this, input.url, merged);
                 if (url && (PERPLEXITY_ENDPOINT_REGEX.test(url) || DEEPSEEK_ENDPOINT_REGEX.test(url))) { return handleSSEIfApplicable(resp, url); }
                 return resp;
               }
+              const merged = Object.assign({}, init || {}, {
+                body: (init?.body && typeof init.body.getReader === 'function')
+                  ? stringToStream(newBody)
+                  : stringToBody(newBody, init?.body),
+              });
+              if (init?.body && typeof init.body.getReader === 'function') {
+                merged.duplex = 'half';
+              }
+              merged.method = merged.method || 'POST';
+              const resp = await origFetch.call(this, input, merged);
+              if (url && (PERPLEXITY_ENDPOINT_REGEX.test(url) || DEEPSEEK_ENDPOINT_REGEX.test(url))) { return handleSSEIfApplicable(resp, url); }
+              return resp;
             }
+            dlog('body unchanged (no context or already enriched)');
           }
         }
       }
-    } catch (e) { 
-      // Error in fetch interception
+    } catch (e) {
+      dlog('fetch interception error:', e);
     }
     return origFetch.apply(this, arguments);
   };
@@ -451,8 +596,8 @@
     if (this.__alch_url && typeof this.__alch_url === 'string' && shouldIntercept(this.__alch_url, null) && body) {
       try {
         const proceed = async () => {
-          // Intercepting XHR request
-          
+          dlog('XHR intercepted:', this.__alch_url);
+
           // Handle Gemini when body is FormData
           if (GEMINI_ENDPOINT_REGEX.test(this.__alch_url) && body instanceof FormData) {
             try {
@@ -465,31 +610,33 @@
                 const newFReq = newParams.get('f.req');
                 if (newFReq) {
                   body.set('f.req', newFReq);
-                  // Gemini XHR FormData enriched
+                  dlog('Gemini XHR FormData enriched');
                 }
               }
-            } catch (e) { 
-              // Error enriching Gemini XHR FormData
-            }
-            // Continue with the original request after enrichment
+            } catch (e) { }
             return origSend.call(this, body);
           }
-          
+
           // Handle other platforms with string body
           if (typeof body === 'string') {
             const newBody = await enrichPayload(body, this.__alch_url);
             if (newBody !== body) {
-              // XHR body enriched
+              dlog('XHR body enriched:', body.length, '->', newBody.length);
               return origSend.call(this, newBody);
             }
+          } else if (body instanceof Blob || body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
+            const text = await bodyToString(body);
+            const newBody = await enrichPayload(text, this.__alch_url);
+            if (newBody !== text) {
+              dlog('XHR binary body enriched');
+              return origSend.call(this, stringToBody(newBody, body));
+            }
           }
-          
-          // If no enrichment occurred, proceed with original body
+
           return origSend.call(this, body);
         };
         return proceed();
-      } catch (e) { 
-        // Error in XHR interception
+      } catch (e) {
         return origSend.call(this, body);
       }
     }
