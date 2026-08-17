@@ -14,7 +14,7 @@
 
   // Match ChatGPT conversation POST, Claude completion endpoint, Gemini StreamGenerate, v0 chat API, Lovable chat API, Perplexity ask endpoint, and Bolt endpoints
   const CHATGPT_ENDPOINT_REGEX = /\/backend-api\/f\/conversation(?:\?|$)/;
-  const CLAUDE_ENDPOINT_REGEX = /\/api\/organizations\/[^\/]+\/chat_conversations\/[^\/]+\/completion$/;
+  const CLAUDE_ENDPOINT_REGEX = /\/api\/organizations\/[^\/]+\/chat_conversations\/[^\/]+\/completion(?:\?|$)/;
   const GEMINI_ENDPOINT_REGEX = /\/_\/BardChatUi\/data\/assistant\.lamda\.BardFrontendService\/StreamGenerate/;
   const V0_ENDPOINT_REGEX = /\/chat\/api\/chat$/;
   const LOVABLE_ENDPOINT_REGEX = /\/projects\/([a-f0-9-]+)\/chat$/;
@@ -471,9 +471,15 @@
       try {
         const memoryEnabled = localStorage.getItem('alchemyst_memory_enabled') === 'true';
         if (!memoryEnabled) {
+          dlog('memory disabled, skipping fetch hook');
           return origFetch.apply(this, arguments);
         }
       } catch (_) { }
+
+      const url = extractUrl(input, init);
+      if (url && url.includes('claude.ai') && !shouldIntercept(input, init)) {
+        dlog('claude.ai fetch not intercepted:', url);
+      }
 
       if (shouldIntercept(input, init)) {
         const url = extractUrl(input, init);

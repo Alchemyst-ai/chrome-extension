@@ -878,9 +878,9 @@ const pendingRequests = new Map();
 
 // Inject in-page hook and bridge messages for context fetch
 (function injectInpage() {
-  // ChatGPT is now injected declaratively in the MAIN world via manifest.json
+  // ChatGPT and Claude are now injected declaratively in the MAIN world via manifest.json
   const host = window.location.hostname;
-  const injectedDeclaratively = host.includes('chatgpt.com') || host.includes('chat.openai.com');
+  const injectedDeclaratively = host.includes('chatgpt.com') || host.includes('chat.openai.com') || host.includes('claude.ai');
   if (!injectedDeclaratively) {
     try {
       const url = chrome.runtime.getURL('inpage.js');
